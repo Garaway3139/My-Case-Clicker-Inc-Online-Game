@@ -14,8 +14,9 @@ from threading import Timer
 app = Flask(__name__)
 
 # --- Configuration ---
-ADMIN_PASSWORD = "14122" # Changed as requested
-DATA_DIR = os.path.dirname(os.path.abspath(__file__)) # Simplified data dir
+ADMIN_PASSWORD = "14122" 
+# --- FIX: Point directly to the folder with the space in its name ---
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Case Clicker Inc')
 PLAYER_DATA_FILE = os.path.join(DATA_DIR, 'players.json')
 
 # --- In-Memory Database & Game Data ---
@@ -61,6 +62,7 @@ def save_player_data():
 def load_game_data():
     """Loads all static game data from the JSON files into memory."""
     try:
+        # All paths now correctly look inside the DATA_DIR
         with open(os.path.join(DATA_DIR, "rarities.json"), 'r') as f: GAME_DATA["rarities"] = json.load(f)
         with open(os.path.join(DATA_DIR, "ranks.json"), 'r') as f: GAME_DATA["ranks"] = {int(k): v for k, v in json.load(f).items()}
         with open(os.path.join(DATA_DIR, "skins.json"), 'r') as f: GAME_DATA["all_skins"] = json.load(f)
@@ -82,6 +84,7 @@ def set_player_activity(username, activity):
 # --- API Routes ---
 @app.route('/')
 def index():
+    # Assumes index.html is in the root /src directory, not the sub-folder
     try: return render_template_string(open("index.html").read())
     except FileNotFoundError: return "<h1>Error: index.html not found.</h1>", 404
 
