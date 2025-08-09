@@ -303,3 +303,4 @@ else:
     # For Gunicorn/production
     load_game_data()
     load_player_data()
+    
