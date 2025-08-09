@@ -18,12 +18,13 @@
         ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
         .skin-card { transition: all 0.2s ease-in-out; cursor: pointer; border: 2px solid transparent; }
         .skin-card.selected { border-color: #00ffff; transform: scale(1.05); box-shadow: 0 0 15px rgba(0, 255, 255, 0.5); }
+        .tier-button.active { background-color: #00ffff; color: #1a202c; }
     </style>
 </head>
 <body class="bg-gray-900 text-cyan-300 overflow-hidden h-screen">
 
+    <!-- Main Game Container -->
     <div id="game-container" class="hidden w-full h-screen p-4 flex flex-col md:flex-row gap-4">
-        
         <div class="flex-grow flex flex-col gap-4 w-full md:w-1/3">
             <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
                 <h2 id="username-display" class="text-2xl font-bold text-white">Player</h2>
@@ -34,19 +35,13 @@
             </div>
             <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow flex flex-col items-center justify-center">
                 <button id="click-button" class="bg-cyan-500 hover:bg-cyan-400 text-gray-900 font-bold text-4xl py-16 px-24 rounded-full transition-transform transform hover:scale-105 active:scale-95 shadow-2xl">Click!</button>
-                <div class="grid grid-cols-3 gap-2 mt-8 w-full">
+                <div class="grid grid-cols-2 gap-2 mt-8 w-full">
                     <button onclick="openModal('shop-modal')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">Shop</button>
                     <button onclick="openModal('inventory-modal')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">Inventory</button>
-                    <button onclick="openModal('admin-modal')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">Admin</button>
                 </div>
             </div>
         </div>
-
         <div class="flex flex-col gap-4 w-full md:w-2/3 h-full">
-            <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow flex flex-col h-1/2">
-                <h3 class="text-xl font-bold text-white mb-2 border-b border-gray-700 pb-2">Players Online</h3>
-                <ul id="player-list" class="overflow-y-auto space-y-1 pr-2"></ul>
-            </div>
             <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow flex flex-col h-1/2">
                 <h3 class="text-xl font-bold text-white mb-2 border-b border-gray-700 pb-2">Global Chat</h3>
                 <div id="chat-box" class="flex-grow overflow-y-auto mb-2 pr-2 space-y-2"></div>
@@ -58,26 +53,40 @@
         </div>
     </div>
 
+    <!-- Login Screen -->
     <div id="login-screen" class="w-full h-screen flex items-center justify-center">
         <div class="bg-gray-800 p-8 rounded-lg shadow-2xl text-center w-full max-w-sm">
             <h1 class="text-4xl font-bold text-white mb-4">Case Clicker Online</h1>
-            <input type="text" id="username-input" class="w-full bg-gray-700 text-white rounded-lg p-3 text-center text-lg" placeholder="Enter Username">
-            <button id="login-button" class="w-full mt-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-lg text-lg">Login</button>
+            <div class="space-y-4">
+                <input type="text" id="username-input" class="w-full bg-gray-700 text-white rounded-lg p-3 text-center text-lg" placeholder="Enter Username">
+                <input type="password" id="password-input" class="w-full bg-gray-700 text-white rounded-lg p-3 text-center text-lg" placeholder="Enter Password">
+            </div>
+            <div class="grid grid-cols-2 gap-4 mt-4">
+                <button id="login-button" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-lg text-lg">Login</button>
+                <button id="signup-button" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg text-lg">Sign Up</button>
+            </div>
+            <button onclick="openModal('admin-modal')" class="w-full mt-4 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 rounded-lg">Admin Login</button>
             <p id="login-error" class="text-red-400 mt-4 h-6"></p>
         </div>
     </div>
 
-    <div id="shop-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center">
-        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-4xl h-5/6 flex flex-col p-4">
-            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
-                <h2 class="text-2xl text-white font-bold">Case Shop</h2>
-                <button onclick="closeModal('shop-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+    <!-- Shop Modal -->
+    <div id="shop-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4">
+        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl h-full flex flex-col p-4">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-4">
+                <h2 class="text-3xl text-white font-bold">Case Shop</h2>
+                <div class="text-2xl text-green-400 font-mono">💰 <span id="shop-money-stat">0</span></div>
+                <button onclick="closeModal('shop-modal')" class="text-gray-400 hover:text-white text-3xl">&times;</button>
             </div>
-            <div id="shop-case-list" class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-2"></div>
+            <div id="shop-tier-buttons" class="flex flex-wrap gap-2 mb-4 overflow-x-auto pb-2">
+                <!-- Tier buttons will be generated here -->
+            </div>
+            <div id="shop-case-list" class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-2"></div>
         </div>
     </div>
 
-    <div id="inventory-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center">
+    <!-- Inventory Modal -->
+    <div id="inventory-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4">
         <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-6xl h-5/6 flex flex-col p-4">
             <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
                 <h2 class="text-2xl text-white font-bold">Inventory</h2>
@@ -101,7 +110,8 @@
         </div>
     </div>
 
-    <div id="admin-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center">
+    <!-- Admin Modal -->
+    <div id="admin-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4">
         <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-4xl h-5/6 flex flex-col p-4">
             <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
                 <h2 class="text-2xl text-white font-bold">Admin Panel</h2>
@@ -112,13 +122,13 @@
                 <button id="admin-submit-password" class="w-full mt-4 bg-cyan-600 text-white font-bold py-3 rounded-lg">Authenticate</button>
             </div>
             <div id="admin-data-view" class="hidden flex-grow overflow-hidden flex-col">
-                <h3 class="text-xl font-bold text-white">Live Server Data</h3>
-                <pre id="admin-data-pre" class="bg-gray-900 text-xs p-4 rounded-lg overflow-auto h-1/2 my-2"></pre>
+                <h3 class="text-xl font-bold text-white">Online Players (<span id="admin-online-count">0</span>)</h3>
+                <div id="admin-player-list" class="bg-gray-900 p-2 rounded-lg overflow-auto h-1/2 my-2"></div>
                 <h3 class="text-xl font-bold text-white mt-4">Admin Actions</h3>
-                <div class="flex gap-4 items-center mt-2">
-                    <input id="admin-target-user" class="bg-gray-700 p-2 rounded" placeholder="Target Username">
-                    <button id="admin-kick-button" class="bg-red-600 p-2 rounded">Kick Player</button>
-                    <input id="admin-money-amount" type="number" class="bg-gray-700 p-2 rounded w-24" placeholder="Amount">
+                <div class="flex gap-4 items-center mt-2 p-2 bg-gray-900 rounded-lg">
+                    <input id="admin-target-user" class="bg-gray-700 p-2 rounded flex-grow" placeholder="Target Username">
+                    <button id="admin-kick-button" class="bg-red-600 p-2 rounded">Kick</button>
+                    <input id="admin-money-amount" type="number" class="bg-gray-700 p-2 rounded w-32" placeholder="Amount">
                     <button id="admin-give-money-button" class="bg-green-600 p-2 rounded">Give Money</button>
                 </div>
             </div>
@@ -132,8 +142,8 @@ const API_URL = window.location.origin;
 // --- State Management ---
 let gameState = {
     username: null,
+    password: null,
     playerData: { clicks: 0, money: 0, skins: [], cases: {} },
-    onlinePlayers: [],
     lastGlobalChatId: '0',
     adminPassword: null,
     selectedSkinIds: new Set(),
@@ -149,27 +159,32 @@ let gameLoopInterval = null;
 const loginScreen = document.getElementById('login-screen');
 const gameContainer = document.getElementById('game-container');
 const usernameInput = document.getElementById('username-input');
+const passwordInput = document.getElementById('password-input');
 const loginButton = document.getElementById('login-button');
+const signupButton = document.getElementById('signup-button');
 const loginError = document.getElementById('login-error');
 const usernameDisplay = document.getElementById('username-display');
 const moneyStat = document.getElementById('money-stat');
 const clicksStat = document.getElementById('clicks-stat');
 const clickButton = document.getElementById('click-button');
-const playerList = document.getElementById('player-list');
 const chatBox = document.getElementById('chat-box');
 const chatInput = document.getElementById('chat-input');
 const sendChatButton = document.getElementById('send-chat-button');
 const shopCaseList = document.getElementById('shop-case-list');
+const shopTierButtons = document.getElementById('shop-tier-buttons');
+const shopMoneyStat = document.getElementById('shop-money-stat');
 const inventoryCaseList = document.getElementById('inventory-case-list');
 const inventorySkinList = document.getElementById('inventory-skin-list');
 const skinCount = document.getElementById('skin-count');
 const sellButtonContainer = document.getElementById('sell-button-container');
 const sellSelectedBtn = document.getElementById('sell-selected-btn');
+const adminModal = document.getElementById('admin-modal');
 const adminLoginView = document.getElementById('admin-login-view');
 const adminPasswordInput = document.getElementById('admin-password-input');
 const adminSubmitPassword = document.getElementById('admin-submit-password');
 const adminDataView = document.getElementById('admin-data-view');
-const adminDataPre = document.getElementById('admin-data-pre');
+const adminPlayerList = document.getElementById('admin-player-list');
+const adminOnlineCount = document.getElementById('admin-online-count');
 const adminTargetUser = document.getElementById('admin-target-user');
 const adminKickButton = document.getElementById('admin-kick-button');
 const adminMoneyAmount = document.getElementById('admin-money-amount');
@@ -190,60 +205,55 @@ async function apiRequest(endpoint, body) {
         return data;
     } catch (error) {
         console.error(`API request to ${endpoint} failed:`, error);
-        if (endpoint === '/api/login') {
-            loginError.textContent = error.message;
-        }
+        loginError.textContent = error.message;
         return { success: false, message: error.message };
     }
 }
 
-// --- CORE FIX: Local Storage Management ---
-function saveStateToLocalStorage() {
+// --- Local Storage Management ---
+function saveCredentialsToLocalStorage() {
     try {
-        // Create a simple object with ONLY the data you need to persist.
-        const stateToSave = {
+        const credentials = {
             username: gameState.username,
+            password: gameState.password,
             adminPassword: gameState.adminPassword
-            // Do NOT include the full playerData, onlinePlayers, or selectedSkinIds (a Set)
         };
-        localStorage.setItem('caseClickerState', JSON.stringify(stateToSave));
+        localStorage.setItem('caseClickerCreds', JSON.stringify(credentials));
     } catch (e) {
-        console.error("Failed to save state:", e);
+        console.error("Failed to save credentials:", e);
     }
 }
 
-function loadStateFromLocalStorage() {
+function loadCredentialsFromLocalStorage() {
     try {
-        const savedState = localStorage.getItem('caseClickerState');
-        if (savedState) {
-            const parsedState = JSON.parse(savedState);
-            Object.assign(gameState, parsedState);
+        const savedCreds = localStorage.getItem('caseClickerCreds');
+        if (savedCreds) {
+            const parsed = JSON.parse(savedCreds);
+            gameState.username = parsed.username || null;
+            gameState.password = parsed.password || null;
+            gameState.adminPassword = parsed.adminPassword || null;
         }
     } catch (e) {
-        console.error("Failed to load state:", e);
-        localStorage.removeItem('caseClickerState');
+        console.error("Failed to load credentials:", e);
+        localStorage.removeItem('caseClickerCreds');
     }
 }
 
 // --- UI Rendering ---
+function updateAllMoneyDisplays() {
+    const money = Math.floor(gameState.playerData.money).toLocaleString();
+    moneyStat.textContent = money;
+    shopMoneyStat.textContent = money;
+}
+
 function updateUI() {
     if (!gameState.playerData) return;
-    moneyStat.textContent = Math.floor(gameState.playerData.money).toLocaleString();
-    clicksStat.textContent = gameState.playerData.clicks.toLocaleString();
+    updateAllMoneyDisplays();
+    clicksStat.textContent = (gameState.playerData.clicks || 0).toLocaleString();
     usernameDisplay.textContent = gameState.username;
     renderInventorySkins();
     renderInventoryCases();
     updateSellButton();
-}
-
-function renderPlayerList() {
-    playerList.innerHTML = '';
-    gameState.onlinePlayers.forEach(player => {
-        const li = document.createElement('li');
-        li.className = 'text-white bg-gray-700 p-2 rounded';
-        li.textContent = player;
-        playerList.appendChild(li);
-    });
 }
 
 function addChatMessage(msgData) {
@@ -256,7 +266,7 @@ function addChatMessage(msgData) {
         div.classList.add('player-message');
         const senderSpan = document.createElement('span');
         senderSpan.className = 'sender';
-        senderSpan.style.color = '#38b2ac'; // TailWind teal-500
+        senderSpan.style.color = '#38b2ac';
         senderSpan.textContent = `${msgData.sender}: `;
         div.appendChild(senderSpan);
         div.append(msgData.msg);
@@ -265,16 +275,33 @@ function addChatMessage(msgData) {
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-function renderShopCases() {
+function setupShopTiers() {
+    shopTierButtons.innerHTML = '';
+    for (let i = 1; i <= 20; i++) {
+        const button = document.createElement('button');
+        button.className = 'tier-button bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg';
+        button.textContent = `T${i}`;
+        button.onclick = () => renderShopCases(i);
+        shopTierButtons.appendChild(button);
+    }
+}
+
+function renderShopCases(tier) {
+    // Highlight active tier button
+    document.querySelectorAll('.tier-button').forEach((btn, index) => {
+        btn.classList.toggle('active', index + 1 === tier);
+    });
+
     shopCaseList.innerHTML = '';
-    for (const caseName in gameData.cases) {
-        const caseInfo = gameData.cases[caseName];
+    const filteredCases = Object.entries(gameData.cases).filter(([name, data]) => data.tier === tier);
+    
+    for (const [caseName, caseInfo] of filteredCases) {
         const div = document.createElement('div');
         div.className = 'bg-gray-700 p-4 rounded-lg flex flex-col items-center';
         div.innerHTML = `
-            <h4 class="text-lg font-bold text-white">${caseName}</h4>
-            <p class="text-green-400 font-mono my-2">$${caseInfo.price.toLocaleString()}</p>
-            <button class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg" onclick="buyCase('${caseName}')">Buy</button>
+            <h4 class="text-lg font-bold text-white text-center">${caseName}</h4>
+            <p class="text-green-400 font-mono my-2">$${parseFloat(caseInfo.price).toLocaleString()}</p>
+            <button class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg mt-auto" onclick="buyCase('${caseName}')">Buy</button>
         `;
         shopCaseList.appendChild(div);
     }
@@ -282,6 +309,7 @@ function renderShopCases() {
 
 function renderInventorySkins() {
     inventorySkinList.innerHTML = '';
+    if (!gameState.playerData.skins) gameState.playerData.skins = [];
     skinCount.textContent = gameState.playerData.skins.length;
     const sortedSkins = [...gameState.playerData.skins].sort((a, b) => b.value - a.value);
 
@@ -289,12 +317,10 @@ function renderInventorySkins() {
         const rarity = gameData.skins[skin.name] || 'Common';
         const rarityInfo = gameData.rarities[rarity] || { color: 'gray' };
         const div = document.createElement('div');
-        div.className = `skin-card bg-gray-800 p-2 rounded-lg flex flex-col items-center text-center border-2 border-transparent`;
-        div.style.borderColor = gameState.selectedSkinIds.has(skin.id) ? '#00ffff' : 'transparent';
+        div.className = `skin-card bg-gray-800 p-2 rounded-lg flex flex-col items-center text-center`;
         if (gameState.selectedSkinIds.has(skin.id)) {
             div.classList.add('selected');
         }
-
         div.innerHTML = `
             <p class="text-sm font-bold" style="color: ${rarityInfo.color};">${skin.name}</p>
             <p class="text-xs text-green-300 font-mono">$${skin.value.toLocaleString()}</p>
@@ -306,6 +332,7 @@ function renderInventorySkins() {
 
 function renderInventoryCases() {
     inventoryCaseList.innerHTML = '';
+    if (!gameState.playerData.cases) gameState.playerData.cases = {};
     for (const caseName in gameState.playerData.cases) {
         const count = gameState.playerData.cases[caseName];
         if (count > 0) {
@@ -325,40 +352,59 @@ function renderInventoryCases() {
 
 function updateSellButton() {
     const selectedCount = gameState.selectedSkinIds.size;
+    sellButtonContainer.classList.toggle('hidden', selectedCount === 0);
     if (selectedCount > 0) {
-        sellButtonContainer.classList.remove('hidden');
         sellSelectedBtn.textContent = `Sell Selected (${selectedCount})`;
-    } else {
-        sellButtonContainer.classList.add('hidden');
     }
 }
-
 
 // --- Game Logic ---
 async function handleLogin() {
     const user = usernameInput.value.trim();
-    if (!user) {
-        loginError.textContent = 'Username cannot be empty.';
+    const pass = passwordInput.value;
+    if (!user || !pass) {
+        loginError.textContent = 'Username and password are required.';
         return;
     }
     loginButton.disabled = true;
+    signupButton.disabled = true;
     loginError.textContent = '';
 
-    const result = await apiRequest('/api/login', { username: user });
+    const result = await apiRequest('/api/login', { username: user, password: pass });
 
     if (result.success) {
-        gameState.username = user;
+        gameState.username = result.username; // Use display name from server
+        gameState.password = pass;
         gameState.playerData = result.player_data;
         loginScreen.classList.add('hidden');
         gameContainer.classList.remove('hidden');
-        saveStateToLocalStorage();
+        saveCredentialsToLocalStorage();
         await loadStaticData();
         updateUI();
         startGameLoop();
-    } else {
-        loginError.textContent = result.message || 'Login failed.';
     }
     loginButton.disabled = false;
+    signupButton.disabled = false;
+}
+
+async function handleSignup() {
+    const user = usernameInput.value.trim();
+    const pass = passwordInput.value;
+    if (!user || !pass) {
+        loginError.textContent = 'Username and password are required for signup.';
+        return;
+    }
+    loginButton.disabled = true;
+    signupButton.disabled = true;
+    loginError.textContent = '';
+    
+    const result = await apiRequest('/api/register', { username: user, password: pass });
+    
+    // Display message whether success or fail
+    loginError.textContent = result.message;
+    
+    loginButton.disabled = false;
+    signupButton.disabled = false;
 }
 
 async function handleClick() {
@@ -368,7 +414,8 @@ async function handleClick() {
         gameState.playerData = result.player_data;
         updateUI();
     }
-    clickButton.disabled = false;
+    // Re-enable after a short delay to prevent spam
+    setTimeout(() => { clickButton.disabled = false; }, 100);
 }
 
 async function handleChatSend() {
@@ -427,19 +474,51 @@ async function sellSelectedSkins() {
 }
 
 // --- Modals & Admin ---
-function openModal(modalId) { document.getElementById(modalId).classList.add('active'); }
+function openModal(modalId) { 
+    document.getElementById(modalId).classList.add('active'); 
+    if (modalId === 'shop-modal') {
+        updateAllMoneyDisplays();
+        // Default to showing Tier 1 when opening the shop
+        if(!document.querySelector('.tier-button.active')) {
+            renderShopCases(1);
+        }
+    }
+}
 function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
 
 async function handleAdminLogin() {
-    gameState.adminPassword = adminPasswordInput.value;
-    const result = await apiRequest('/api/admin/data', { password: gameState.adminPassword });
+    const pass = adminPasswordInput.value;
+    const result = await apiRequest('/api/admin/data', { password: pass });
     if (result.success) {
+        gameState.adminPassword = pass;
+        saveCredentialsToLocalStorage();
         adminLoginView.classList.add('hidden');
-        adminDataView.style.display = 'flex'; // Use flex to match the CSS
-        adminDataPre.textContent = JSON.stringify(result.all_data, null, 2);
+        adminDataView.style.display = 'flex';
+        renderAdminPlayerList(result.online_players);
     } else {
         alert('Incorrect password.');
     }
+}
+
+function renderAdminPlayerList(players) {
+    adminPlayerList.innerHTML = '';
+    adminOnlineCount.textContent = players.length;
+    players.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'bg-gray-700 p-2 rounded mb-2 flex justify-between items-center';
+        div.innerHTML = `
+            <div>
+                <p class="font-bold text-white">${p.username}</p>
+                <p class="text-sm text-cyan-400">Activity: ${p.activity}</p>
+            </div>
+            <div class="text-right">
+                <p class="text-sm text-green-400">$${p.money.toLocaleString()}</p>
+                <p class="text-sm text-yellow-400">${p.clicks.toLocaleString()} Clicks</p>
+            </div>
+        `;
+        div.onclick = () => { adminTargetUser.value = p.username; };
+        adminPlayerList.appendChild(div);
+    });
 }
 
 async function handleAdminAction(action) {
@@ -455,15 +534,16 @@ async function handleAdminAction(action) {
     alert(result.message || "Action failed.");
     if(result.success) {
        const dataResult = await apiRequest('/api/admin/data', { password: gameState.adminPassword });
-       adminDataPre.textContent = JSON.stringify(dataResult.all_data, null, 2);
+       if (dataResult.success) {
+           renderAdminPlayerList(dataResult.online_players);
+       }
     }
 }
-
 
 // --- Game Initialization & Loop ---
 function startGameLoop() {
     if (gameLoopInterval) clearInterval(gameLoopInterval);
-    gameLoopInterval = setInterval(updateGameState, 3000); // Poll every 3 seconds
+    gameLoopInterval = setInterval(updateGameState, 3000);
 }
 
 async function updateGameState() {
@@ -475,27 +555,22 @@ async function updateGameState() {
 
     if (result.success) {
         gameState.playerData = result.player_data;
-        gameState.onlinePlayers = result.online_players;
-
         result.new_global_messages.forEach(msg => {
             addChatMessage(msg);
             gameState.lastGlobalChatId = msg.id;
         });
-        
         updateUI();
-        renderPlayerList();
         
-        if (gameState.adminPassword) {
+        if (adminModal.classList.contains('active') && gameState.adminPassword) {
             const dataResult = await apiRequest('/api/admin/data', { password: gameState.adminPassword });
             if (dataResult.success) {
-                adminDataPre.textContent = JSON.stringify(dataResult.all_data, null, 2);
+                renderAdminPlayerList(dataResult.online_players);
             }
         }
-
     } else {
-        // If the game state fails (e.g., server restarted), log out
         console.error("Game state update failed. Logging out.");
         clearInterval(gameLoopInterval);
+        localStorage.removeItem('caseClickerCreds');
         location.reload();
     }
 }
@@ -510,7 +585,7 @@ async function loadStaticData() {
         gameData.cases = casesRes;
         gameData.skins = skinsRes;
         gameData.rarities = raritiesRes;
-        renderShopCases();
+        setupShopTiers();
     } catch (e) {
         console.error("Failed to load static game data:", e);
         loginError.textContent = "Could not connect to game servers.";
@@ -518,11 +593,11 @@ async function loadStaticData() {
 }
 
 function initGame() {
-    loadStateFromLocalStorage();
+    loadCredentialsFromLocalStorage();
     
-    // Event Listeners
     loginButton.addEventListener('click', handleLogin);
-    usernameInput.addEventListener('keydown', (e) => e.key === 'Enter' && handleLogin());
+    signupButton.addEventListener('click', handleSignup);
+    passwordInput.addEventListener('keydown', (e) => e.key === 'Enter' && handleLogin());
     clickButton.addEventListener('click', handleClick);
     sendChatButton.addEventListener('click', handleChatSend);
     chatInput.addEventListener('keydown', (e) => e.key === 'Enter' && handleChatSend());
@@ -531,9 +606,9 @@ function initGame() {
     adminKickButton.addEventListener('click', () => handleAdminAction('kick'));
     adminGiveMoneyButton.addEventListener('click', () => handleAdminAction('give_money'));
 
-    // Auto-login if username exists in local storage
-    if (gameState.username) {
+    if (gameState.username && gameState.password) {
         usernameInput.value = gameState.username;
+        passwordInput.value = gameState.password;
         handleLogin();
     }
 }
