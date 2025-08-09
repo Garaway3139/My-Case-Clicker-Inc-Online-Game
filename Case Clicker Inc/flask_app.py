@@ -8,25 +8,24 @@ import random
 import time
 import sys
 import hashlib # For password hashing
-from threading import Timer
 
 # --- Flask App Setup ---
 app = Flask(__name__)
 
 # --- Configuration ---
 ADMIN_PASSWORD = "14122" 
-# --- FIX: Account for Render's root directory structure ---
+ADMIN_USERNAME = "clace" # Define the main admin username
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'Case Clicker Inc')
-# Also, ensure the root HTML file is found correctly
 INDEX_FILE_PATH = os.path.join(BASE_DIR, 'index.html')
 PLAYER_DATA_FILE = os.path.join(DATA_DIR, 'players.json')
 
 # --- In-Memory Database & Game Data ---
 DB = {
-    "players": {}, # This will be loaded from players.json
-    "online_users": {}, # {username: {"last_seen": timestamp, "activity": "Idle"}}
+    "players": {},
+    "online_users": {},
     "global_chat": [],
+    "private_chats": {} # To store private messages
 }
 GAME_DATA = {
     "rarities": {}, "ranks": {}, "all_skins": {}, "cases": {}
@@ -34,56 +33,52 @@ GAME_DATA = {
 
 # --- Helper Functions ---
 def hash_password(password):
-    """Hashes a password for storing."""
     return hashlib.sha256(password.encode()).hexdigest()
 
 def load_player_data():
-    """Loads player data from the JSON file into memory."""
     try:
-        # Create the data directory if it doesn't exist
         if not os.path.exists(DATA_DIR):
             os.makedirs(DATA_DIR)
-            print(f"⚠️ Data directory '{DATA_DIR}' not found. Created it.")
-
         if os.path.exists(PLAYER_DATA_FILE):
             with open(PLAYER_DATA_FILE, 'r') as f:
                 DB["players"] = json.load(f)
-            print("✅ Player data loaded successfully.")
+            # Ensure admin user exists and has the admin role
+            if ADMIN_USERNAME.lower() in DB["players"]:
+                DB["players"][ADMIN_USERNAME.lower()]['role'] = 'admin'
+            print("✅ Player data loaded.")
         else:
-            # Create the player file if it doesn't exist
             with open(PLAYER_DATA_FILE, 'w') as f:
                 json.dump({}, f)
-            print("⚠️ players.json not found. Created a new empty player database.")
+            print("⚠️ players.json not found. Created a new empty file.")
     except Exception as e:
-        print(f"❌ ERROR: Could not load player data from '{PLAYER_DATA_FILE}': {e}")
+        print(f"❌ ERROR loading player data: {e}")
 
 def save_player_data():
-    """Saves the current player data to the JSON file."""
     try:
-        # Save a copy to prevent issues with concurrent modification during serialization
-        players_to_save = DB["players"].copy()
         with open(PLAYER_DATA_FILE, 'w') as f:
-            json.dump(players_to_save, f, indent=4)
+            json.dump(DB["players"], f, indent=4)
     except Exception as e:
-        print(f"❌ ERROR: Could not save player data to '{PLAYER_DATA_FILE}': {e}")
+        print(f"❌ ERROR saving player data: {e}")
 
 def load_game_data():
-    """Loads all static game data from the JSON files into memory."""
     try:
-        # All paths now correctly look inside the DATA_DIR
         with open(os.path.join(DATA_DIR, "rarities.json"), 'r') as f: GAME_DATA["rarities"] = json.load(f)
         with open(os.path.join(DATA_DIR, "ranks.json"), 'r') as f: GAME_DATA["ranks"] = {int(k): v for k, v in json.load(f).items()}
         with open(os.path.join(DATA_DIR, "skins.json"), 'r') as f: GAME_DATA["all_skins"] = json.load(f)
         with open(os.path.join(DATA_DIR, "cases.json"), 'r') as f: GAME_DATA["cases"] = json.load(f)
-        print("✅ Game data loaded successfully.")
+        print("✅ Game data loaded.")
         return True
     except Exception as e:
-        print(f"❌ FATAL ERROR: Could not load game data from '{DATA_DIR}': {e}")
+        print(f"❌ FATAL ERROR loading game data from '{DATA_DIR}': {e}")
         return False
 
-def send_global_event(event_data):
-    DB["global_chat"].append({"id": str(uuid.uuid4()), "sender": "Server", "msg": event_data, "is_server_msg": True})
-    if len(DB["global_chat"]) > 100: DB["global_chat"].pop(0)
+def get_player_rank(clicks):
+    current_rank = {"name": "No Rank"}
+    for rank_id in sorted(GAME_DATA["ranks"].keys(), reverse=True):
+        if clicks >= GAME_DATA["ranks"][rank_id]["clicks_needed"]:
+            current_rank = GAME_DATA["ranks"][rank_id]
+            break
+    return current_rank
 
 def set_player_activity(username, activity):
     if username in DB["online_users"]:
@@ -109,8 +104,12 @@ def register():
     DB["players"][username.lower()] = {
         "password_hash": hash_password(password),
         "display_name": username,
-        "clicks": 0, "money": 100, "skins": [], "cases": {}
+        "clicks": 0, "money": 100, "skins": [], "cases": {},
+        "role": "player" # Default role
     }
+    # Make the predefined user an admin upon registration
+    if username.lower() == ADMIN_USERNAME.lower():
+        DB["players"][username.lower()]['role'] = 'admin'
     save_player_data()
     return jsonify({"success": True, "message": "Registration successful! You can now log in."})
 
@@ -119,12 +118,10 @@ def login():
     username = request.json.get('username', '').lower()
     password = request.json.get('password')
     player_record = DB["players"].get(username)
-
     if not player_record or player_record["password_hash"] != hash_password(password):
         return jsonify({"success": False, "message": "Invalid username or password."}), 401
-
     DB["online_users"][username] = {"last_seen": time.time(), "activity": "Just Logged In"}
-    send_global_event(f"{player_record['display_name']} has joined.")
+    # No longer announce joins in global chat
     return jsonify({"success": True, "player_data": player_record, "username": player_record['display_name']})
 
 @app.route('/api/game_state', methods=['POST'])
@@ -132,52 +129,57 @@ def get_game_state():
     username = request.json.get('username', '').lower()
     if not username or username not in DB["online_users"]:
         return jsonify({"success": False, "message": "Not authenticated."}), 403
-
     DB["online_users"][username]["last_seen"] = time.time()
-    set_player_activity(username, "Idle") # Default activity
-    last_chat_id = request.json.get('last_chat_id', '0')
-    new_global_messages = [msg for msg in DB["global_chat"] if msg["id"] > last_chat_id]
-
-    current_time = time.time()
-    online_players = {user: data for user, data in DB["online_users"].items() if current_time - data["last_seen"] < 30}
-    if len(online_players) != len(DB["online_users"]):
-        disconnected = set(DB["online_users"].keys()) - set(online_players.keys())
-        for user in disconnected:
-            display_name = DB["players"].get(user, {}).get("display_name", user)
-            send_global_event(f"{display_name} has disconnected.")
-    DB["online_users"] = online_players
+    set_player_activity(username, "Idle")
     
     player_data = DB["players"].get(username)
-    if player_data:
-        player_data["display_name"] = DB["players"][username]["display_name"]
+    if not player_data:
+        return jsonify({"success": False, "message": "Player data not found."}), 404
+        
+    player_data["rank"] = get_player_rank(player_data.get("clicks", 0))
 
-    return jsonify({"success": True, "new_global_messages": new_global_messages, "player_data": player_data})
+    current_time = time.time()
+    online_players_dict = {}
+    for user, data in DB["online_users"].items():
+        if current_time - data["last_seen"] < 30:
+            display_name = DB["players"].get(user, {}).get("display_name", user)
+            online_players_dict[user] = {"display_name": display_name}
+    DB["online_users"] = {u: d for u, d in DB["online_users"].items() if current_time - d["last_seen"] < 30}
+
+    return jsonify({
+        "success": True, 
+        "player_data": player_data,
+        "online_players": list(online_players_dict.values())
+    })
 
 @app.route('/api/click', methods=['POST'])
 def handle_click():
     username = request.json.get('username', '').lower()
     if not username or username not in DB["players"]: return jsonify({"success": False}), 403
     set_player_activity(username, "Clicking")
-    DB["players"][username]["clicks"] += 1
-    DB["players"][username]["money"] += random.uniform(1.0, 2.5)
-    # Save periodically instead of every click to reduce disk I/O
-    if DB["players"][username]["clicks"] % 25 == 0:
-        save_player_data()
-    return jsonify({"success": True, "player_data": DB["players"][username]})
+    player = DB["players"][username]
+    
+    current_rank_info = get_player_rank(player["clicks"])
+    clicks_per_click = current_rank_info.get("base_clicks", 1)
 
+    player["clicks"] += clicks_per_click
+    player["money"] += random.uniform(1.0, 2.5) * clicks_per_click
+    if player["clicks"] % 25 == 0:
+        save_player_data()
+    return jsonify({"success": True, "player_data": player})
+
+# Other routes (buy_case, open_case, sell_skins) remain largely the same...
 @app.route('/api/buy_case', methods=['POST'])
 def buy_case():
     username = request.json.get('username', '').lower()
     case_name = request.json.get('case_name')
-    quantity = int(request.json.get('quantity', 1))
-    if not all([username, case_name, quantity > 0]) or username not in DB["players"]: return jsonify({"success": False}), 400
+    if not all([username, case_name]) or username not in DB["players"]: return jsonify({"success": False}), 400
     set_player_activity(username, "In Shop")
-    case_price = float(GAME_DATA["cases"].get(case_name, {}).get('price', 0))
-    total_cost = case_price * quantity
+    case_price = float(GAME_DATA["cases"].get(case_name, {}).get('price', "0"))
     player = DB["players"][username]
-    if player["money"] < total_cost: return jsonify({"success": False, "message": "Not enough money!"})
-    player["money"] -= total_cost
-    player["cases"][case_name] = player["cases"].get(case_name, 0) + quantity
+    if player["money"] < case_price: return jsonify({"success": False, "message": "Not enough money!"})
+    player["money"] -= case_price
+    player["cases"][case_name] = player["cases"].get(case_name, 0) + 1
     save_player_data()
     return jsonify({"success": True, "player_data": player})
 
@@ -212,7 +214,11 @@ def open_case():
     player["cases"][case_name] -= 1
     player["skins"].append(item_won)
     display_name = player.get("display_name", username)
-    send_global_event(f"{display_name} unboxed a {item_won['name']}!")
+    # Announce valuable unboxings
+    rarity = GAME_DATA["all_skins"][item_won['name']]
+    if rarity in ["Legendary", "Immortal"]:
+        DB["global_chat"].append({"id": str(uuid.uuid4()), "sender": "Server", "msg": f"{display_name} just unboxed an incredible item: {item_won['name']}!", "is_server_msg": True})
+
     save_player_data()
     return jsonify({"success": True, "player_data": player, "item_won": item_won})
 
@@ -230,6 +236,7 @@ def sell_skins():
     save_player_data()
     return jsonify({"success": True, "player_data": player, "value": total_value, "count": len(skins_to_sell)})
 
+# --- Chat Routes ---
 @app.route('/api/chat/global', methods=['POST'])
 def handle_global_chat():
     username = request.json.get('username', '').lower()
@@ -237,71 +244,95 @@ def handle_global_chat():
     if not all([username, message]) or username not in DB["online_users"]: return jsonify({"success": False}), 400
     display_name = DB["players"].get(username, {}).get("display_name", username)
     DB["global_chat"].append({"id": str(uuid.uuid4()), "sender": display_name, "msg": message, "is_server_msg": False})
-    if len(DB["global_chat"]) > 100: DB["global_chat"].pop(0)
     return jsonify({"success": True})
 
-# --- Static Game Data Routes ---
-@app.route('/api/game_data/cases')
-def get_cases(): return jsonify(GAME_DATA["cases"])
-
-@app.route('/api/game_data/skins')
-def get_skins(): return jsonify(GAME_DATA["all_skins"])
+@app.route('/api/chat/history', methods=['POST'])
+def get_chat_history():
+    # This single endpoint will fetch both global and private messages
+    username = request.json.get('username', '').lower()
+    last_global_id = request.json.get('last_global_id', '0')
+    if not username or username not in DB["online_users"]: return jsonify({"success": False}), 403
     
-@app.route('/api/game_data/rarities')
-def get_rarities(): return jsonify(GAME_DATA["rarities"])
+    new_global_messages = [msg for msg in DB["global_chat"] if msg["id"] > last_global_id]
+    
+    return jsonify({"success": True, "global": new_global_messages})
+
+# --- Static Game Data Routes ---
+@app.route('/api/game_data/all')
+def get_all_game_data():
+    return jsonify(GAME_DATA)
 
 # --- Admin Routes ---
 @app.route('/api/admin/data', methods=['POST'])
 def get_admin_data():
-    if request.json.get('password') != ADMIN_PASSWORD: return jsonify({"success": False}), 403
+    password = request.json.get('password')
+    if password != ADMIN_PASSWORD: return jsonify({"success": False}), 403
     
-    # Create a more detailed online user list for the admin panel
     detailed_online_users = []
     for user_lower, data in DB["online_users"].items():
         player_record = DB["players"].get(user_lower, {})
         detailed_online_users.append({
             "username": player_record.get("display_name", user_lower),
             "activity": data.get("activity", "Unknown"),
+            "role": player_record.get("role", "player"),
             "money": player_record.get("money", 0),
-            "clicks": player_record.get("clicks", 0),
-            "skin_count": len(player_record.get("skins", [])),
-            "case_count": sum(player_record.get("cases", {}).values())
+            "clicks": player_record.get("clicks", 0)
         })
-
-    return jsonify({"success": True, "online_players": detailed_online_users, "all_player_count": len(DB["players"])})
+    return jsonify({"success": True, "online_players": detailed_online_users})
 
 @app.route('/api/admin/action', methods=['POST'])
 def admin_action():
     data = request.json
-    if data.get('password') != ADMIN_PASSWORD: return jsonify({"success": False}), 403
-    action, target_user_display = data.get('action'), data.get('target_user')
+    password = data.get('password')
+    admin_user_lower = data.get('admin_user', '').lower()
     
+    if password != ADMIN_PASSWORD: return jsonify({"success": False, "message": "Invalid Admin Password"}), 403
+    
+    admin_player = DB["players"].get(admin_user_lower)
+    if not admin_player or admin_player.get('role') not in ['admin', 'moderator']:
+        return jsonify({"success": False, "message": "You do not have permission to perform this action."}), 403
+
+    action = data.get('action')
+    target_user_display = data.get('target_user')
     target_user_lower = next((u for u, p in DB["players"].items() if p["display_name"] == target_user_display), None)
     if not target_user_lower:
         return jsonify({"success": False, "message": "Target user not found."})
 
-    if action == 'kick' and target_user_lower in DB["online_users"]:
-        del DB["online_users"][target_user_lower]
-        send_global_event(f"{target_user_display} was kicked by an admin.")
-        return jsonify({"success": True, "message": f"{target_user_display} kicked."})
+    if action == 'kick':
+        if target_user_lower in DB["online_users"]:
+            del DB["online_users"][target_user_lower]
+            return jsonify({"success": True, "message": f"{target_user_display} kicked."})
+        return jsonify({"success": False, "message": "User is not online."})
         
-    if action == 'give_money' and target_user_lower in DB["players"]:
+    if action == 'give_money':
         try:
             amount = int(data.get('amount', 0))
             DB["players"][target_user_lower]["money"] += amount
             save_player_data()
-            send_global_event(f"{target_user_display} was granted ${amount:,} by an admin!")
             return jsonify({"success": True, "message": f"Gave ${amount:,} to {target_user_display}."})
         except (ValueError, TypeError):
             return jsonify({"success": False, "message": "Invalid amount."})
+    
+    # Actions only the main admin can do
+    if admin_player.get('role') != 'admin':
+        return jsonify({"success": False, "message": "Only the main admin can manage roles."}), 403
 
-    return jsonify({"success": False, "message": "Invalid action or user."})
+    if action == 'set_role':
+        new_role = data.get('role')
+        if DB["players"][target_user_lower].get('role') == 'admin':
+             return jsonify({"success": False, "message": "Cannot change the main admin's role."})
+        if new_role in ['player', 'moderator']:
+            DB["players"][target_user_lower]['role'] = new_role
+            save_player_data()
+            return jsonify({"success": True, "message": f"Set {target_user_display}'s role to {new_role}."})
+        return jsonify({"success": False, "message": "Invalid role."})
+
+    return jsonify({"success": False, "message": "Invalid action."})
 
 if __name__ == '__main__':
     if not load_game_data(): sys.exit(1)
     load_player_data()
     app.run(debug=True, host='0.0.0.0', port=5000)
 else:
-    # For Gunicorn/production
     load_game_data()
     load_player_data()
