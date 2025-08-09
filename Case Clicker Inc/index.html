@@ -16,7 +16,7 @@
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #1a202c; }
         ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
-        .skin-card { transition: all 0.2s ease-in-out; }
+        .skin-card { transition: all 0.2s ease-in-out; cursor: pointer; border: 2px solid transparent; }
         .skin-card.selected { border-color: #00ffff; transform: scale(1.05); box-shadow: 0 0 15px rgba(0, 255, 255, 0.5); }
     </style>
 </head>
@@ -111,7 +111,7 @@
                 <input type="password" id="admin-password-input" class="w-full bg-gray-700 text-white rounded-lg p-3 text-center" placeholder="Enter Admin Password">
                 <button id="admin-submit-password" class="w-full mt-4 bg-cyan-600 text-white font-bold py-3 rounded-lg">Authenticate</button>
             </div>
-            <div id="admin-data-view" class="hidden flex-grow overflow-hidden">
+            <div id="admin-data-view" class="hidden flex-grow overflow-hidden flex-col">
                 <h3 class="text-xl font-bold text-white">Live Server Data</h3>
                 <pre id="admin-data-pre" class="bg-gray-900 text-xs p-4 rounded-lg overflow-auto h-1/2 my-2"></pre>
                 <h3 class="text-xl font-bold text-white mt-4">Admin Actions</h3>
@@ -143,6 +143,7 @@ let gameData = {
     skins: {},
     rarities: {}
 };
+let gameLoopInterval = null;
 
 // --- DOM Elements ---
 const loginScreen = document.getElementById('login-screen');
@@ -189,5 +190,357 @@ async function apiRequest(endpoint, body) {
         return data;
     } catch (error) {
         console.error(`API request to ${endpoint} failed:`, error);
+        if (endpoint === '/api/login') {
+            loginError.textContent = error.message;
+        }
         return { success: false, message: error.message };
     }
+}
+
+// --- CORE FIX: Local Storage Management ---
+function saveStateToLocalStorage() {
+    try {
+        // Create a simple object with ONLY the data you need to persist.
+        const stateToSave = {
+            username: gameState.username,
+            adminPassword: gameState.adminPassword
+            // Do NOT include the full playerData, onlinePlayers, or selectedSkinIds (a Set)
+        };
+        localStorage.setItem('caseClickerState', JSON.stringify(stateToSave));
+    } catch (e) {
+        console.error("Failed to save state:", e);
+    }
+}
+
+function loadStateFromLocalStorage() {
+    try {
+        const savedState = localStorage.getItem('caseClickerState');
+        if (savedState) {
+            const parsedState = JSON.parse(savedState);
+            Object.assign(gameState, parsedState);
+        }
+    } catch (e) {
+        console.error("Failed to load state:", e);
+        localStorage.removeItem('caseClickerState');
+    }
+}
+
+// --- UI Rendering ---
+function updateUI() {
+    if (!gameState.playerData) return;
+    moneyStat.textContent = Math.floor(gameState.playerData.money).toLocaleString();
+    clicksStat.textContent = gameState.playerData.clicks.toLocaleString();
+    usernameDisplay.textContent = gameState.username;
+    renderInventorySkins();
+    renderInventoryCases();
+    updateSellButton();
+}
+
+function renderPlayerList() {
+    playerList.innerHTML = '';
+    gameState.onlinePlayers.forEach(player => {
+        const li = document.createElement('li');
+        li.className = 'text-white bg-gray-700 p-2 rounded';
+        li.textContent = player;
+        playerList.appendChild(li);
+    });
+}
+
+function addChatMessage(msgData) {
+    const div = document.createElement('div');
+    div.classList.add('chat-message');
+    if (msgData.is_server_msg) {
+        div.classList.add('server-message');
+        div.textContent = msgData.msg;
+    } else {
+        div.classList.add('player-message');
+        const senderSpan = document.createElement('span');
+        senderSpan.className = 'sender';
+        senderSpan.style.color = '#38b2ac'; // TailWind teal-500
+        senderSpan.textContent = `${msgData.sender}: `;
+        div.appendChild(senderSpan);
+        div.append(msgData.msg);
+    }
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function renderShopCases() {
+    shopCaseList.innerHTML = '';
+    for (const caseName in gameData.cases) {
+        const caseInfo = gameData.cases[caseName];
+        const div = document.createElement('div');
+        div.className = 'bg-gray-700 p-4 rounded-lg flex flex-col items-center';
+        div.innerHTML = `
+            <h4 class="text-lg font-bold text-white">${caseName}</h4>
+            <p class="text-green-400 font-mono my-2">$${caseInfo.price.toLocaleString()}</p>
+            <button class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg" onclick="buyCase('${caseName}')">Buy</button>
+        `;
+        shopCaseList.appendChild(div);
+    }
+}
+
+function renderInventorySkins() {
+    inventorySkinList.innerHTML = '';
+    skinCount.textContent = gameState.playerData.skins.length;
+    const sortedSkins = [...gameState.playerData.skins].sort((a, b) => b.value - a.value);
+
+    sortedSkins.forEach(skin => {
+        const rarity = gameData.skins[skin.name] || 'Common';
+        const rarityInfo = gameData.rarities[rarity] || { color: 'gray' };
+        const div = document.createElement('div');
+        div.className = `skin-card bg-gray-800 p-2 rounded-lg flex flex-col items-center text-center border-2 border-transparent`;
+        div.style.borderColor = gameState.selectedSkinIds.has(skin.id) ? '#00ffff' : 'transparent';
+        if (gameState.selectedSkinIds.has(skin.id)) {
+            div.classList.add('selected');
+        }
+
+        div.innerHTML = `
+            <p class="text-sm font-bold" style="color: ${rarityInfo.color};">${skin.name}</p>
+            <p class="text-xs text-green-300 font-mono">$${skin.value.toLocaleString()}</p>
+        `;
+        div.onclick = () => toggleSkinSelection(skin.id, div);
+        inventorySkinList.appendChild(div);
+    });
+}
+
+function renderInventoryCases() {
+    inventoryCaseList.innerHTML = '';
+    for (const caseName in gameState.playerData.cases) {
+        const count = gameState.playerData.cases[caseName];
+        if (count > 0) {
+            const div = document.createElement('div');
+            div.className = 'bg-gray-700 p-3 rounded-lg flex justify-between items-center';
+            div.innerHTML = `
+                <div>
+                    <h5 class="text-white font-bold">${caseName}</h5>
+                    <p class="text-sm text-gray-400">Amount: ${count}</p>
+                </div>
+                <button class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-1 px-3 rounded" onclick="openCase('${caseName}')">Open</button>
+            `;
+            inventoryCaseList.appendChild(div);
+        }
+    }
+}
+
+function updateSellButton() {
+    const selectedCount = gameState.selectedSkinIds.size;
+    if (selectedCount > 0) {
+        sellButtonContainer.classList.remove('hidden');
+        sellSelectedBtn.textContent = `Sell Selected (${selectedCount})`;
+    } else {
+        sellButtonContainer.classList.add('hidden');
+    }
+}
+
+
+// --- Game Logic ---
+async function handleLogin() {
+    const user = usernameInput.value.trim();
+    if (!user) {
+        loginError.textContent = 'Username cannot be empty.';
+        return;
+    }
+    loginButton.disabled = true;
+    loginError.textContent = '';
+
+    const result = await apiRequest('/api/login', { username: user });
+
+    if (result.success) {
+        gameState.username = user;
+        gameState.playerData = result.player_data;
+        loginScreen.classList.add('hidden');
+        gameContainer.classList.remove('hidden');
+        saveStateToLocalStorage();
+        await loadStaticData();
+        updateUI();
+        startGameLoop();
+    } else {
+        loginError.textContent = result.message || 'Login failed.';
+    }
+    loginButton.disabled = false;
+}
+
+async function handleClick() {
+    clickButton.disabled = true;
+    const result = await apiRequest('/api/click', { username: gameState.username });
+    if (result.success) {
+        gameState.playerData = result.player_data;
+        updateUI();
+    }
+    clickButton.disabled = false;
+}
+
+async function handleChatSend() {
+    const message = chatInput.value;
+    if (message.trim()) {
+        chatInput.value = '';
+        await apiRequest('/api/chat/global', { username: gameState.username, message: message });
+    }
+}
+
+async function buyCase(caseName) {
+    const result = await apiRequest('/api/buy_case', { username: gameState.username, case_name: caseName, quantity: 1 });
+    if (result.success) {
+        gameState.playerData = result.player_data;
+        updateUI();
+    } else {
+        alert(result.message || "Failed to buy case.");
+    }
+}
+
+async function openCase(caseName) {
+    const result = await apiRequest('/api/open_case', { username: gameState.username, case_name: caseName });
+    if (result.success) {
+        gameState.playerData = result.player_data;
+        updateUI();
+        alert(`You unboxed a ${result.item_won.name} worth $${result.item_won.value.toLocaleString()}!`);
+    } else {
+        alert(result.message || "Failed to open case.");
+    }
+}
+
+function toggleSkinSelection(skinId, element) {
+    if (gameState.selectedSkinIds.has(skinId)) {
+        gameState.selectedSkinIds.delete(skinId);
+        element.classList.remove('selected');
+    } else {
+        gameState.selectedSkinIds.add(skinId);
+        element.classList.add('selected');
+    }
+    updateSellButton();
+}
+
+async function sellSelectedSkins() {
+    const ids = Array.from(gameState.selectedSkinIds);
+    if (ids.length === 0) return;
+
+    const result = await apiRequest('/api/sell_skins', { username: gameState.username, skin_ids: ids });
+    if (result.success) {
+        gameState.playerData = result.player_data;
+        gameState.selectedSkinIds.clear();
+        updateUI();
+        alert(`Sold ${result.count} skins for $${result.value.toLocaleString()}.`);
+    } else {
+        alert(result.message || "Failed to sell skins.");
+    }
+}
+
+// --- Modals & Admin ---
+function openModal(modalId) { document.getElementById(modalId).classList.add('active'); }
+function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
+
+async function handleAdminLogin() {
+    gameState.adminPassword = adminPasswordInput.value;
+    const result = await apiRequest('/api/admin/data', { password: gameState.adminPassword });
+    if (result.success) {
+        adminLoginView.classList.add('hidden');
+        adminDataView.style.display = 'flex'; // Use flex to match the CSS
+        adminDataPre.textContent = JSON.stringify(result.all_data, null, 2);
+    } else {
+        alert('Incorrect password.');
+    }
+}
+
+async function handleAdminAction(action) {
+    const target_user = adminTargetUser.value;
+    const amount = adminMoneyAmount.value;
+    const body = {
+        password: gameState.adminPassword,
+        action: action,
+        target_user: target_user,
+        amount: action === 'give_money' ? amount : undefined
+    };
+    const result = await apiRequest('/api/admin/action', body);
+    alert(result.message || "Action failed.");
+    if(result.success) {
+       const dataResult = await apiRequest('/api/admin/data', { password: gameState.adminPassword });
+       adminDataPre.textContent = JSON.stringify(dataResult.all_data, null, 2);
+    }
+}
+
+
+// --- Game Initialization & Loop ---
+function startGameLoop() {
+    if (gameLoopInterval) clearInterval(gameLoopInterval);
+    gameLoopInterval = setInterval(updateGameState, 3000); // Poll every 3 seconds
+}
+
+async function updateGameState() {
+    if (!gameState.username) return;
+    const result = await apiRequest('/api/game_state', {
+        username: gameState.username,
+        last_chat_id: gameState.lastGlobalChatId
+    });
+
+    if (result.success) {
+        gameState.playerData = result.player_data;
+        gameState.onlinePlayers = result.online_players;
+
+        result.new_global_messages.forEach(msg => {
+            addChatMessage(msg);
+            gameState.lastGlobalChatId = msg.id;
+        });
+        
+        updateUI();
+        renderPlayerList();
+        
+        if (gameState.adminPassword) {
+            const dataResult = await apiRequest('/api/admin/data', { password: gameState.adminPassword });
+            if (dataResult.success) {
+                adminDataPre.textContent = JSON.stringify(dataResult.all_data, null, 2);
+            }
+        }
+
+    } else {
+        // If the game state fails (e.g., server restarted), log out
+        console.error("Game state update failed. Logging out.");
+        clearInterval(gameLoopInterval);
+        location.reload();
+    }
+}
+
+async function loadStaticData() {
+    try {
+        const [casesRes, skinsRes, raritiesRes] = await Promise.all([
+            fetch(`${API_URL}/api/game_data/cases`).then(res => res.json()),
+            fetch(`${API_URL}/api/game_data/skins`).then(res => res.json()),
+            fetch(`${API_URL}/api/game_data/rarities`).then(res => res.json())
+        ]);
+        gameData.cases = casesRes;
+        gameData.skins = skinsRes;
+        gameData.rarities = raritiesRes;
+        renderShopCases();
+    } catch (e) {
+        console.error("Failed to load static game data:", e);
+        loginError.textContent = "Could not connect to game servers.";
+    }
+}
+
+function initGame() {
+    loadStateFromLocalStorage();
+    
+    // Event Listeners
+    loginButton.addEventListener('click', handleLogin);
+    usernameInput.addEventListener('keydown', (e) => e.key === 'Enter' && handleLogin());
+    clickButton.addEventListener('click', handleClick);
+    sendChatButton.addEventListener('click', handleChatSend);
+    chatInput.addEventListener('keydown', (e) => e.key === 'Enter' && handleChatSend());
+    sellSelectedBtn.addEventListener('click', sellSelectedSkins);
+    adminSubmitPassword.addEventListener('click', handleAdminLogin);
+    adminKickButton.addEventListener('click', () => handleAdminAction('kick'));
+    adminGiveMoneyButton.addEventListener('click', () => handleAdminAction('give_money'));
+
+    // Auto-login if username exists in local storage
+    if (gameState.username) {
+        usernameInput.value = gameState.username;
+        handleLogin();
+    }
+}
+
+// --- Start the application ---
+initGame();
+</script>
+
+</body>
+</html>
