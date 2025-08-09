@@ -15,8 +15,8 @@ app = Flask(__name__)
 
 # --- Configuration ---
 ADMIN_PASSWORD = "14122" 
-# --- FIX: Point directly to the folder with the space in its name ---
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Case Clicker Inc')
+# --- FIX: Use a simple relative path to the data folder ---
+DATA_DIR = 'Case Clicker Inc'
 PLAYER_DATA_FILE = os.path.join(DATA_DIR, 'players.json')
 
 # --- In-Memory Database & Game Data ---
@@ -37,12 +37,17 @@ def hash_password(password):
 def load_player_data():
     """Loads player data from the JSON file into memory."""
     try:
+        # Create the data directory if it doesn't exist
+        if not os.path.exists(DATA_DIR):
+            os.makedirs(DATA_DIR)
+            print(f"⚠️ Data directory '{DATA_DIR}' not found. Created it.")
+
         if os.path.exists(PLAYER_DATA_FILE):
             with open(PLAYER_DATA_FILE, 'r') as f:
                 DB["players"] = json.load(f)
             print("✅ Player data loaded successfully.")
         else:
-            # Create the file if it doesn't exist
+            # Create the player file if it doesn't exist
             with open(PLAYER_DATA_FILE, 'w') as f:
                 json.dump({}, f)
             print("⚠️ players.json not found. Created a new empty player database.")
