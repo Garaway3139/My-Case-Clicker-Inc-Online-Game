@@ -15,8 +15,11 @@ app = Flask(__name__)
 
 # --- Configuration ---
 ADMIN_PASSWORD = "14122" 
-# --- FIX: Use a simple relative path to the data folder ---
-DATA_DIR = 'Case Clicker Inc'
+# --- FIX: Account for Render's root directory structure ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, 'Case Clicker Inc')
+# Also, ensure the root HTML file is found correctly
+INDEX_FILE_PATH = os.path.join(BASE_DIR, 'index.html')
 PLAYER_DATA_FILE = os.path.join(DATA_DIR, 'players.json')
 
 # --- In-Memory Database & Game Data ---
@@ -89,9 +92,8 @@ def set_player_activity(username, activity):
 # --- API Routes ---
 @app.route('/')
 def index():
-    # Assumes index.html is in the root /src directory, not the sub-folder
-    try: return render_template_string(open("index.html").read())
-    except FileNotFoundError: return "<h1>Error: index.html not found.</h1>", 404
+    try: return render_template_string(open(INDEX_FILE_PATH).read())
+    except FileNotFoundError: return f"<h1>Error: {INDEX_FILE_PATH} not found.</h1>", 404
 
 @app.route('/api/register', methods=['POST'])
 def register():
@@ -303,4 +305,3 @@ else:
     # For Gunicorn/production
     load_game_data()
     load_player_data()
-    
