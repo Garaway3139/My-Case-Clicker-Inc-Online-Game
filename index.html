@@ -18,7 +18,6 @@
         ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
         .skin-card { transition: all 0.2s ease-in-out; }
         .skin-card.selected { border-color: #00ffff; transform: scale(1.05); box-shadow: 0 0 15px rgba(0, 255, 255, 0.5); }
-        .tab-button.active { background-color: #0891b2; color: white; }
         .tier-button { transition: background-color 0.2s; }
         .tier-button.active { background-color: #06b6d4; color: white; }
     </style>
@@ -166,9 +165,7 @@
     </div>
 
     <div id="staff-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-30">
-        <div id="admin-panel-content" class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl h-5/6 flex-col p-4 hidden">
-            </div>
-        <div id="staff-panel-content" class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl h-5/6 flex-col p-4 hidden">
+        <div id="admin-panel-content" class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl h-5/6 flex flex-col p-4">
              </div>
     </div>
 
@@ -215,7 +212,6 @@ const moneyStat = document.getElementById('money-stat');
 const clicksStat = document.getElementById('clicks-stat');
 const rankStat = document.getElementById('rank-stat');
 const clickButton = document.getElementById('click-button');
-const playerList = document.getElementById('player-list');
 const chatBox = document.getElementById('chat-box');
 const chatInput = document.getElementById('chat-input');
 const sendChatButton = document.getElementById('send-chat-button');
@@ -227,7 +223,6 @@ const sellButtonContainer = document.getElementById('sell-button-container');
 const sellSelectedBtn = document.getElementById('sell-selected-btn');
 const staffPanelButton = document.getElementById('staff-panel-button');
 const adminPanelContent = document.getElementById('admin-panel-content');
-const staffPanelContent = document.getElementById('staff-panel-content');
 const leaderboardContent = document.getElementById('leaderboard-content');
 const logoutButton = document.getElementById('logout-button');
 const shopMoneyDisplay = document.getElementById('shop-money-display');
@@ -303,8 +298,9 @@ async function apiRequest(endpoint, body = {}, method = 'POST') {
 // --- Modals ---
 function openModal(modalId) {
     if (modalId === 'staff-modal') {
-        if (gameState.playerData.role === 'admin') renderAdminPanel();
-        else if (gameState.playerData.role === 'moderator' || gameState.playerData.role === 'helpdesk') renderStaffPanel();
+        if (['admin', 'moderator', 'helpdesk'].includes(gameState.playerData.role)) {
+            renderAdminPanel();
+        }
     }
     if (modalId === 'leaderboard-modal') renderLeaderboards();
     if (modalId === 'shop-modal') renderShop();
@@ -360,9 +356,9 @@ function renderShop() {
         .filter(([, caseInfo]) => caseInfo.tier === shopState.tier);
 
     if (shopState.sort === 'htl') {
-        cases.sort(([,a],[,b]) => b.price - a.price);
+        cases.sort(([,a],[,b]) => parseFloat(b.price) - parseFloat(a.price));
     } else {
-        cases.sort(([,a],[,b]) => a.price - b.price);
+        cases.sort(([,a],[,b]) => parseFloat(a.price) - parseFloat(b.price));
     }
 
     cases.forEach(([name, caseInfo]) => {
@@ -395,6 +391,7 @@ function renderShop() {
 
 function setupShopControls() {
     shopTierButtons.innerHTML = '';
+    // Assuming max tier is 20, adjust if needed
     for(let i = 1; i <= 20; i++) {
         const button = document.createElement('button');
         button.className = `tier-button bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg`;
@@ -505,7 +502,7 @@ async function handleLogin() {
         setupShopControls();
 
         updateLoop();
-        updateInterval = setInterval(updateLoop, 2000); // Faster updates
+        updateInterval = setInterval(updateLoop, 2000);
     } else {
         loginError.textContent = response.message || 'Login failed.';
     }
@@ -599,37 +596,32 @@ function prepareProfileModal() {
     currentPasswordInput.value = '';
     profileMessage.textContent = '';
     profileMessage.className = 'text-center h-6 mt-4';
-
     newUsernameInput.disabled = gameState.playerData.has_changed_username;
     if(newUsernameInput.disabled) newUsernameInput.placeholder = "Username already changed";
-    
     newPasswordInput.disabled = gameState.playerData.has_changed_password;
     if(newPasswordInput.disabled) newPasswordInput.placeholder = "Password already changed";
 }
 
 async function handleSaveProfile() {
     const current_password = currentPasswordInput.value;
-    const new_username = newUsernameInput.value;
-    const new_password = newPasswordInput.value;
-
+    const new_username = newUsernameInput.value.trim();
+    const new_password = newPasswordInput.value.trim();
     if (!current_password) {
         profileMessage.textContent = 'Current password is required.';
-        profileMessage.classList.add('text-red-400');
+        profileMessage.className = 'text-center h-6 mt-4 text-red-400';
         return;
     }
     if (!new_username && !new_password) {
         profileMessage.textContent = 'Enter a new username or password.';
-        profileMessage.classList.add('text-red-400');
+        profileMessage.className = 'text-center h-6 mt-4 text-red-400';
         return;
     }
-
     const body = {
         username: gameState.username,
         current_password: current_password,
         new_username: new_username || null,
         new_password: new_password || null,
     };
-
     const result = await apiRequest('/api/update_profile', body);
     if (result.success) {
         profileMessage.textContent = result.message;
@@ -637,10 +629,6 @@ async function handleSaveProfile() {
         if (result.new_username) {
             alert("Username changed! You will be logged out.");
             handleLogout();
-        } else {
-            const state = await apiRequest('/api/game_state', { username: gameState.username, last_chat_id: gameState.lastGlobalChatId });
-            if(state.success) gameState.playerData = state.player_data;
-            prepareProfileModal();
         }
     } else {
         profileMessage.textContent = result.message;
@@ -658,13 +646,12 @@ async function renderLeaderboards() {
         most_money_spent: "Biggest Spenders", inventory_value: "Highest Inventory Value", highest_skin_value: "Most Valuable Skin",
         most_cases_opened: "Most Cases Opened", monthly_clicks: "Clicks This Month", monthly_cases_opened: "Cases Opened This Month"
     };
-
     for (const [key, board] of Object.entries(boardTitles)) {
         const boardData = data[key] || [];
         const boardDiv = document.createElement('div');
         boardDiv.className = 'bg-gray-700 p-3 rounded-lg';
         let listHtml = `<h4 class="text-white font-bold text-lg mb-2">${board}</h4><ol class="list-decimal list-inside space-y-1">`;
-        boardData.slice(0, 100).forEach(p => { 
+        boardData.forEach(p => { 
             listHtml += `<li class="truncate">${p.username} - <span class="font-mono text-green-300">${formatNumber(Math.floor(p.value))}</span></li>`;
         });
         listHtml += '</ol>';
@@ -675,128 +662,116 @@ async function renderLeaderboards() {
 
 // --- Admin/Staff Panels ---
 async function renderAdminPanel() {
-    adminPanelContent.classList.remove('hidden');
-    staffPanelContent.classList.add('hidden');
-    
-    const stats = await apiRequest('/api/admin/server_stats', {username: gameState.username});
-    
     adminPanelContent.innerHTML = `
         <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
             <h2 class="text-2xl text-white font-bold">Admin Panel</h2>
             <button onclick="closeModal('staff-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
         </div>
-        <div class="flex flex-grow overflow-hidden gap-4">
-            <div class="w-1/4 flex flex-col gap-4">
-                <h3 class="text-xl font-bold text-white">Server Stats</h3>
-                <div class="bg-gray-900 p-4 rounded-lg space-y-2">
-                    <p>Online Players: <span class="font-mono text-cyan-300">${stats.online_players}</span></p>
-                    <p>Total Players: <span class="font-mono text-cyan-300">${stats.total_players}</span></p>
-                    <p>Total Money: <span class="font-mono text-green-400">$${formatNumber(stats.total_server_money)}</span></p>
-                    <p>Total Clicks: <span class="font-mono text-yellow-400">${formatNumber(stats.total_server_clicks)}</span></p>
-                    <p>Total Skins: <span class="font-mono text-purple-400">${formatNumber(stats.total_skins_in_game)}</span></p>
-                </div>
+        <div class="flex flex-grow overflow-hidden gap-4 h-full">
+            <div class="w-1/3 flex flex-col h-full">
+                <input type="text" id="player-search-input" placeholder="Search players..." class="w-full bg-gray-900 p-2 rounded mb-2">
+                <div id="admin-player-list" class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-lg"></div>
             </div>
-            <div class="w-3/4 flex flex-col">
-                <h3 class="text-xl font-bold text-white mb-2">Player Management</h3>
-                <div class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-lg">
-                    <table class="w-full text-left text-sm">
-                        <thead class="sticky top-0 bg-gray-900">
-                            <tr>
-                                <th class="p-2">Username</th><th class="p-2">Role</th><th class="p-2">Money</th>
-                                <th class="p-2">Clicks</th><th class="p-2">Banned</th><th class="p-2">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="admin-player-list-content"></tbody>
-                    </table>
-                </div>
+            <div id="admin-player-details" class="w-2/3 bg-gray-900 p-4 rounded-lg overflow-y-auto">
+                Select a player to view their details.
             </div>
-        </div>
-    `;
-    renderPlayerManagementTable('admin-player-list-content');
-}
-
-async function renderStaffPanel() {
-    staffPanelContent.classList.remove('hidden');
-    adminPanelContent.classList.add('hidden');
-    staffPanelContent.innerHTML = `
-        <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
-            <h2 class="text-2xl text-white font-bold">Staff Panel</h2>
-            <button onclick="closeModal('staff-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
-        </div>
-        <div class="flex-grow overflow-hidden">
-            <div class="h-full flex flex-col">
-                <h3 class="text-xl font-bold text-white mb-2">Player Management</h3>
-                <div class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-lg">
-                    <table class="w-full text-left text-sm">
-                        <thead class="sticky top-0 bg-gray-900">
-                            <tr>
-                                <th class="p-2">Username</th><th class="p-2">Role</th><th class="p-2">Money</th>
-                                <th class="p-2">Clicks</th><th class="p-2">Banned</th><th class="p-2">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="staff-player-list-content"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    `;
-    renderPlayerManagementTable('staff-player-list-content');
-}
-
-async function renderPlayerManagementTable(tbodyId) {
-    const tbody = document.getElementById(tbodyId);
-    const allPlayers = await apiRequest('/api/admin/all_players', {username: gameState.username});
-    tbody.innerHTML = '';
-    const currentUserRole = gameState.playerData.role;
-
-    Object.entries(allPlayers).filter(([name]) => !name.startsWith("AI_Player_")).sort(([a],[b])=>a.localeCompare(b)).forEach(([username, data]) => {
-        const tr = document.createElement('tr');
-        tr.className = 'border-b border-gray-700 hover:bg-gray-800';
-
-        const canEdit = (currentUserRole === 'admin') || (currentUserRole === 'moderator' && data.role !== 'admin');
-        const canBan = (currentUserRole !== 'player') && (data.role !== 'admin' && data.role !== 'moderator');
-        
-        let actionsHtml = '';
-        if(canEdit) {
-            actionsHtml += `<button class="text-blue-400 hover:text-blue-300" data-user="${username}" data-action="edit">Save</button>`;
-        }
-        if(canBan) {
-            actionsHtml += `<button class="ml-2 ${data.is_chat_banned ? 'text-green-400' : 'text-red-400'}" data-user="${username}" data-action="ban" data-ban="${!data.is_chat_banned}">${data.is_chat_banned ? 'Unban' : 'Ban'}</button>`;
-        }
-
-        tr.innerHTML = `
-            <td class="p-2">${username}</td>
-            <td class="p-2">${canEdit && currentUserRole === 'admin' ? `<input type="text" value="${data.role}" class="bg-gray-800 rounded p-1 w-24 staff-edit" data-field="role">` : data.role}</td>
-            <td class="p-2">${canEdit ? `<input type="text" value="${data.money}" class="bg-gray-800 rounded p-1 w-32 staff-edit" data-field="money">` : formatNumber(data.money)}</td>
-            <td class="p-2">${canEdit ? `<input type="text" value="${data.clicks}" class="bg-gray-800 rounded p-1 w-32 staff-edit" data-field="clicks">` : formatNumber(data.clicks)}</td>
-            <td class="p-2">${data.is_chat_banned}</td>
-            <td class="p-2">${actionsHtml}</td>
-        `;
-        tbody.appendChild(tr);
-    });
+        </div>`;
     
-    tbody.querySelectorAll('button').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const targetUser = e.target.dataset.user;
-            const action = e.target.dataset.action;
-            if(action === "ban") {
-                const isBanned = e.target.dataset.ban === 'true';
-                await apiRequest('/api/helpdesk/set_chat_ban', {username: gameState.username, target_user: targetUser, is_banned: isBanned});
-            } else if(action === "edit") {
-                const updates = {};
-                tbody.querySelectorAll('tr').forEach(row => {
-                    if(row.querySelector('td').textContent === targetUser) {
-                        row.querySelectorAll('.staff-edit').forEach(input => {
-                            updates[input.dataset.field] = input.value;
-                        });
-                    }
-                });
-                await apiRequest('/api/admin/update_player', {username: gameState.username, target_user: targetUser, updates: updates});
-            }
-            if (currentUserRole === 'admin') renderAdminPanel();
-            else renderStaffPanel();
+    const allPlayersData = await apiRequest('/api/admin/all_players', {username: gameState.username});
+    const playerListContainer = document.getElementById('admin-player-list');
+    const allPlayers = Object.entries(allPlayersData).filter(([name]) => !name.startsWith("AI_"));
+
+    function displayPlayers(players) {
+        playerListContainer.innerHTML = '';
+        players.sort(([a],[b])=> a.localeCompare(b)).forEach(([username, data]) => {
+            const playerDiv = document.createElement('div');
+            playerDiv.className = 'p-2 hover:bg-gray-700 cursor-pointer rounded';
+            playerDiv.textContent = username;
+            playerDiv.dataset.username = username;
+            playerDiv.onclick = () => showPlayerDetails(username);
+            playerListContainer.appendChild(playerDiv);
         });
+    }
+
+    displayPlayers(allPlayers);
+
+    document.getElementById('player-search-input').addEventListener('keyup', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const filteredPlayers = allPlayers.filter(([name]) => name.toLowerCase().includes(searchTerm));
+        displayPlayers(filteredPlayers);
     });
+}
+
+async function showPlayerDetails(username) {
+    const detailsContainer = document.getElementById('admin-player-details');
+    detailsContainer.innerHTML = 'Loading...';
+    const response = await apiRequest(`/api/admin/player/${username}`, {}, 'GET');
+    if (!response.success) {
+        detailsContainer.innerHTML = 'Could not load player details.';
+        return;
+    }
+    const player = response.player;
+    const onlineStatus = player.is_online ? '<span class="text-green-400">Online</span>' : '<span class="text-red-400">Offline</span>';
+    detailsContainer.innerHTML = `
+        <h3 class="text-2xl font-bold">${username} (${onlineStatus})</h3>
+        <p class="text-gray-400">Role: ${player.role}</p>
+        <div class="grid grid-cols-2 gap-4 mt-4">
+            <div><label class="block text-gray-400">Money</label><input type="text" id="edit-money" value="${player.money}" class="bg-gray-800 p-2 rounded w-full"></div>
+            <div><label class="block text-gray-400">Clicks</label><input type="text" id="edit-clicks" value="${player.clicks}" class="bg-gray-800 p-2 rounded w-full"></div>
+            <div><label class="block text-gray-400">Rank #</label><input type="text" id="edit-rank" value="${player.rank}" class="bg-gray-800 p-2 rounded w-full"></div>
+            <button id="save-player-details" class="col-span-2 bg-blue-600 hover:bg-blue-500 text-white font-bold p-2 rounded">Save Values</button>
+        </div>
+        <hr class="my-4 border-gray-600">
+        <h4 class="text-xl font-bold">Actions</h4>
+        <div class="flex gap-2 mt-2 flex-wrap">
+            <button id="chat-ban-btn" class="flex-grow bg-yellow-600 p-2 rounded">${player.is_chat_banned ? "Unban Chat" : "Ban Chat"}</button>
+            <input type="number" id="temp-ban-duration" placeholder="Hours" class="bg-gray-800 p-2 rounded w-24">
+            <button id="temp-ban-btn" class="bg-orange-600 p-2 rounded">Temp Ban</button>
+            <button id="perm-ban-btn" class="bg-red-700 p-2 rounded">PERMA BAN</button>
+        </div>
+        <hr class="my-4 border-gray-600">
+        <h4 class="text-xl font-bold">Private Message</h4>
+        <textarea id="private-message-input" class="w-full bg-gray-800 p-2 rounded mt-2" rows="3"></textarea>
+        <button id="send-pm-btn" class="bg-purple-600 w-full p-2 rounded mt-2">Send Message</button>
+    `;
+
+    document.getElementById('save-player-details').onclick = async () => {
+        const updates = {
+            money: document.getElementById('edit-money').value,
+            clicks: document.getElementById('edit-clicks').value,
+            rank: document.getElementById('edit-rank').value,
+        };
+        const res = await apiRequest('/api/admin/update_player', { username: gameState.username, target_user: username, updates: updates });
+        alert(res.message);
+        showPlayerDetails(username);
+    };
+
+    document.getElementById('chat-ban-btn').onclick = async () => {
+        const res = await apiRequest('/api/helpdesk/set_chat_ban', { username: gameState.username, target_user: username, is_banned: !player.is_chat_banned });
+        alert(res.message);
+        showPlayerDetails(username);
+    };
+    
+    document.getElementById('temp-ban-btn').onclick = async () => {
+        const hours = document.getElementById('temp-ban-duration').value;
+        if (!hours || hours <= 0) { alert("Please enter a valid number of hours."); return; }
+        const res = await apiRequest('/api/admin/ban_player', { username: gameState.username, target_user: username, duration_seconds: hours * 3600 });
+        alert(res.message);
+    };
+
+    document.getElementById('perm-ban-btn').onclick = async () => {
+        if (!confirm(`Are you sure you want to permanently ban ${username}?`)) return;
+        const res = await apiRequest('/api/admin/ban_player', { username: gameState.username, target_user: username, duration_seconds: null });
+        alert(res.message);
+    };
+
+    document.getElementById('send-pm-btn').onclick = async () => {
+        const message = document.getElementById('private-message-input').value;
+        if (!message) { alert("Message cannot be empty."); return; }
+        const res = await apiRequest('/api/admin/private_message', { username: gameState.username, target_user: username, message: message });
+        alert(res.message);
+        document.getElementById('private-message-input').value = '';
+    };
 }
 
 // --- Main Game Loop ---
@@ -837,7 +812,7 @@ window.addEventListener('load', () => {
     passwordInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleLogin(); });
     logoutButton.addEventListener('click', handleLogout);
     saveProfileButton.addEventListener('click', handleSaveProfile);
-    staffPanelButton.addEventListener('click', () => openModal('staff-modal')); // <-- FIX IS HERE
+    staffPanelButton.addEventListener('click', () => openModal('staff-modal'));
     showPassword.addEventListener('change', () => {
         passwordInput.type = showPassword.checked ? 'text' : 'password';
     });
@@ -855,84 +830,6 @@ window.addEventListener('load', () => {
 
     sellSelectedBtn.addEventListener('click', handleSellSkins);
 });
-</script>
-
-<script>
-// This redundant script block can be removed. The logic is already handled above.
-/*
-document.getElementById("login-button").addEventListener("click", async () => {
-    const username = document.getElementById("username-input").value.trim();
-    const password = document.getElementById("password-input").value.trim();
-    const res = await fetch("/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
-    });
-    const data = await res.json();
-    if (data.success) {
-        document.getElementById("login-screen").classList.add("hidden");
-        document.getElementById("game-container").classList.remove("hidden");
-        document.getElementById("username-display").innerText = data.username;
-        document.getElementById("login-error").innerText = "";
-    } else {
-        document.getElementById("login-error").innerText = data.message;
-    }
-});
-*/
-</script>
-
-
-<script>
-// This redundant script block can also be removed. The logic is handled in the main script.
-/*
-async function loadCases() {
-    try {
-        const res = await fetch("/get_cases");
-        const data = await res.json();
-        if (data.success) {
-            console.log("Cases loaded:", data.cases);
-            // TODO: Populate shop UI here
-        } else {
-            console.error(data.message);
-        }
-    } catch (err) {
-        console.error("Error loading cases:", err);
-    }
-}
-
-async function openAdminPanel(username) {
-    try {
-        const res = await fetch("/admin", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username })
-        });
-        const data = await res.json();
-        if (data.success) {
-            console.log("Admin Panel Data:", data);
-            alert("Welcome admin: " + JSON.stringify(data));
-        } else {
-            alert(data.message);
-        }
-    } catch (err) {
-        console.error("Error opening admin panel:", err);
-    }
-}
-
-// Example triggers after login
-document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("login-button").addEventListener("click", () => {
-        setTimeout(loadCases, 1000);
-    });
-    const adminBtn = document.getElementById("admin-button");
-    if (adminBtn) {
-        adminBtn.addEventListener("click", () => {
-            const username = document.getElementById("username-display").innerText;
-            openAdminPanel(username);
-        });
-    }
-});
-*/
 </script>
 
 </body>
