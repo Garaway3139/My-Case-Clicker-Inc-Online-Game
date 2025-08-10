@@ -34,25 +34,24 @@ def find_file(filename, search_path):
 
 def update_ai_players():
     """Called periodically to simulate AI player progress."""
-    ai_players = [name for name, data in DB["players"].items() if name.startswith("AI_Player_")]
+    ai_players = [name for name, data in DB["players"].items() if data.get("role") == "ai"]
     if not ai_players:
         return
 
     # Update a small fraction of AI players to simulate activity
-    for _ in range(min(5, len(ai_players))): # Update up to 5 AI players at a time
+    for _ in range(min(10, len(ai_players))): # Update up to 10 AI players at a time
         player_name = random.choice(ai_players)
         player = DB["players"][player_name]
-        player["clicks"] += random.randint(100, 500)
-        player["money"] += random.randint(200, 1000)
+        player["clicks"] += random.randint(100, 1500)
+        player["money"] += random.randint(200, 3000)
         player["time_played"] += random.randint(60, 300)
         if random.random() < 0.1: # 10% chance to "open" a case
-            player["cases_opened"] += 1
+            player["cases_opened"] += random.randint(1, 5)
             player["monthly_cases_opened"] +=1
 
 
 def save_players_data():
     if PLAYERS_FILE:
-        # Before saving, give a chance for AI players to progress
         if random.random() < 0.25: # 25% chance to update AI on any player save
             update_ai_players()
         with open(PLAYERS_FILE, 'w') as f:
@@ -91,35 +90,35 @@ def load_or_create_files():
     SERVER_STATE_FILE = find_file("server_state.json", BASE_DIR)
 
     if not PLAYERS_FILE:
-        print("⚠️ Players file not found. Creating a new one with AI players.")
         PLAYERS_FILE = os.path.join(BASE_DIR, 'players.json')
-        default_players = {
+    
+    try:
+        with open(PLAYERS_FILE, 'r') as f:
+            DB["players"] = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        print("⚠️ Players file not found or corrupted. Creating a new one.")
+        DB["players"] = {
             "admin": {"password_hash": "21232f297a57a5a743894a0e4a801fc3", "role": "admin", "clicks": 1000000, "money": 100000000, "skins": [], "cases": {}, "time_played": 0, "money_spent": 0, "cases_opened": 0, "monthly_clicks": 0, "monthly_cases_opened": 0, "is_chat_banned": False, "rank": 17, "has_changed_username": False, "has_changed_password": False},
             "player1": {"password_hash": "5d41402abc4b2a76b9719d911017c592", "role": "player", "clicks": 100, "money": 500, "skins": [], "cases": {}, "time_played": 0, "money_spent": 0, "cases_opened": 0, "monthly_clicks": 0, "monthly_cases_opened": 0, "is_chat_banned": False, "rank": 1, "has_changed_username": False, "has_changed_password": False}
         }
-        # Generate AI Players
-        for i in range(1, 1001):
-            default_players[f"AI_Player_{i}"] = {
+    
+    # Check for and generate AI players if they don't exist
+    ai_player_count = sum(1 for p in DB["players"].values() if p.get("role") == "ai")
+    if ai_player_count < 1000:
+        print(f"🤖 Found {ai_player_count} AI players. Generating {1000 - ai_player_count} more...")
+        for i in range(ai_player_count, 1000):
+            DB["players"][f"AI_Player_{i+1}"] = {
                 "password_hash": "", "role": "ai",
-                "clicks": random.randint(1000, 1000000),
-                "money": random.randint(5000, 5000000),
-                "skins": [], "cases": {},
-                "time_played": random.randint(3600, 360000),
-                "money_spent": random.randint(1000, 1000000),
-                "cases_opened": random.randint(10, 1000),
-                "monthly_clicks": random.randint(100, 10000),
-                "monthly_cases_opened": random.randint(1, 50),
+                "clicks": random.randint(1000, 1000000), "money": random.randint(5000, 5000000),
+                "skins": [], "cases": {}, "time_played": random.randint(3600, 360000),
+                "money_spent": random.randint(1000, 1000000), "cases_opened": random.randint(10, 1000),
+                "monthly_clicks": random.randint(100, 10000), "monthly_cases_opened": random.randint(1, 50),
                 "is_chat_banned": True, "rank": random.randint(1, 18)
             }
-        DB["players"] = default_players
-        save_players_data()
-    else:
-        with open(PLAYERS_FILE, 'r') as f:
-            DB["players"] = json.load(f)
-    print(f"✅ Loaded {len(DB['players'])} players from {PLAYERS_FILE}")
+    save_players_data()
+    print(f"✅ Loaded {len(DB['players'])} total players from {PLAYERS_FILE}")
 
     if not SERVER_STATE_FILE:
-        print("⚠️ Server state file not found. Creating a new one.")
         SERVER_STATE_FILE = os.path.join(BASE_DIR, 'server_state.json')
         DB["server_state"] = {"last_monthly_reset": datetime.now().strftime("%Y-%m")}
         save_server_state()
@@ -205,7 +204,6 @@ def signup():
         "is_chat_banned": False, "rank": 0, "has_changed_username": False, "has_changed_password": False
     }
     save_players_data()
-    send_global_event(f"Welcome to our new player, {username}!")
     return jsonify({"success": True, "message": "Account created successfully! You can now log in."})
 
 @app.route('/api/login', methods=['POST'])
@@ -217,7 +215,6 @@ def login():
         return jsonify({"success": False, "message": "Invalid username or password."}), 401
     
     DB["online_users"][username] = {"last_seen": time.time(), "role": player.get("role", "player")}
-    send_global_event(f"{username} has joined.")
     return jsonify({"success": True, "player_data": player})
 
 @app.route('/api/game_state', methods=['POST'])
@@ -226,14 +223,13 @@ def get_game_state():
     if not username or username not in DB["online_users"]: return jsonify({"success": False, "message": "Not authenticated."}), 401
     
     DB["online_users"][username]["last_seen"] = time.time()
-    if username in DB["players"]: DB["players"][username]["time_played"] = DB["players"][username].get("time_played", 0) + 3
+    if username in DB["players"]: DB["players"][username]["time_played"] = DB["players"][username].get("time_played", 0) + 2
     
     current_time = time.time()
     online_users_snapshot = list(DB["online_users"].keys())
     for user in online_users_snapshot:
         if current_time - DB["online_users"][user]["last_seen"] > 65:
             del DB["online_users"][user]
-            send_global_event(f"{user} has disconnected.")
             save_players_data()
 
     last_chat_id = request.json.get('last_chat_id', '0')
@@ -360,6 +356,24 @@ def get_all_players():
         if "password_hash" in safe_data: del safe_data["password_hash"]
         safe_players[uname] = safe_data
     return jsonify(safe_players)
+
+@app.route('/api/admin/server_stats')
+@role_required(['admin'])
+def get_server_stats():
+    real_players = [p for p in DB["players"].values() if p.get("role") != "ai"]
+    total_money = sum(p.get("money", 0) for p in real_players)
+    total_clicks = sum(p.get("clicks", 0) for p in real_players)
+    total_skins = sum(len(p.get("skins", [])) for p in real_players)
+    
+    stats = {
+        "online_players": len(DB["online_users"]),
+        "total_players": len(real_players),
+        "total_server_money": total_money,
+        "total_server_clicks": total_clicks,
+        "total_skins_in_game": total_skins
+    }
+    return jsonify(stats)
+
 
 @app.route('/api/admin/update_player', methods=['POST'])
 @role_required(['moderator', 'admin'])
