@@ -229,6 +229,7 @@ def get_game_state():
         return jsonify({"success": False, "message": "Not authenticated."}), 401
     
     # Update player's time played and last seen
+    DB["online_users"][username]["last_seen"] = time.time()
     if username in DB["players"]:
         DB["players"][username]["time_played"] = DB["players"][username].get("time_played", 0) + 3 # Approximating based on poll interval
     
@@ -236,7 +237,8 @@ def get_game_state():
     current_time = time.time()
     online_users_snapshot = list(DB["online_users"].keys())
     for user in online_users_snapshot:
-        if current_time - DB["online_users"][user]["last_seen"] > 30:
+        # Increased timeout to 65 seconds to be more tolerant of hosting service sleep cycles
+        if current_time - DB["online_users"][user]["last_seen"] > 65:
             del DB["online_users"][user]
             send_global_event(f"{user} has disconnected.")
             save_players_data() # Save on disconnect
