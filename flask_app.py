@@ -32,6 +32,15 @@ def find_file(filename, search_path):
             return os.path.join(root, filename)
     return None
 
+def generate_ai_gamertag():
+    """Generates a random AI gamertag."""
+    ADJECTIVES = ["Silent", "Shadow", "Rogue", "Quantum", "Cosmic", "Vex", "Zero", "Apex", "Iron", "Cyber"]
+    NOUNS = ["Spectre", "Hunter", "Reaper", "Phantom", "Glitch", "Warden", "Nexus", "Vortex", "Bot", "Unit"]
+    adj = random.choice(ADJECTIVES)
+    noun = random.choice(NOUNS)
+    number = random.randint(100, 999)
+    return f"{adj}{noun}{number}"
+
 def update_ai_players():
     """Called periodically to simulate AI player progress."""
     ai_players = [name for name, data in DB["players"].items() if data.get("role") == "ai"]
@@ -39,7 +48,7 @@ def update_ai_players():
         return
 
     # Update a small fraction of AI players to simulate activity
-    for _ in range(min(10, len(ai_players))): # Update up to 10 AI players at a time
+    for _ in range(min(5, len(ai_players))): # Update up to 5 AI players at a time
         player_name = random.choice(ai_players)
         player = DB["players"][player_name]
         player["clicks"] += random.randint(100, 1500)
@@ -104,10 +113,16 @@ def load_or_create_files():
     
     # Check for and generate AI players if they don't exist
     ai_player_count = sum(1 for p in DB["players"].values() if p.get("role") == "ai")
-    if ai_player_count < 1000:
-        print(f"🤖 Found {ai_player_count} AI players. Generating {1000 - ai_player_count} more...")
-        for i in range(ai_player_count, 1000):
-            DB["players"][f"AI_Player_{i+1}"] = {
+    TARGET_AI_COUNT = 100 # Reduced from 1000 to 100
+    if ai_player_count < TARGET_AI_COUNT:
+        print(f"🤖 Found {ai_player_count} AI players. Generating {TARGET_AI_COUNT - ai_player_count} more...")
+        for i in range(ai_player_count, TARGET_AI_COUNT):
+            ai_name = generate_ai_gamertag()
+            # Ensure the generated name is unique
+            while ai_name in DB["players"]:
+                ai_name = generate_ai_gamertag()
+            
+            DB["players"][ai_name] = {
                 "password_hash": "", "role": "ai",
                 "clicks": random.randint(1000, 1000000), "money": random.randint(5000, 5000000),
                 "skins": [], "cases": {}, "time_played": random.randint(3600, 360000),
@@ -417,7 +432,8 @@ def set_chat_ban():
 @app.route('/api/leaderboards')
 def get_leaderboards():
     check_and_reset_monthly_leaderboards()
-    all_players = [p for p in DB["players"].items() if p[1].get("role") != "ai"]
+    # Filter out admins and moderators from the player list for leaderboards
+    all_players = [p for p in DB["players"].items() if p[1].get("role") not in ["ai", "admin", "moderator"]]
     ai_players = [p for p in DB["players"].items() if p[1].get("role") == "ai"]
     
     def get_inv_value(p): return sum(s['value'] for s in p[1].get('skins', []))
@@ -441,7 +457,7 @@ def get_leaderboards():
         full_board = []
         player_idx, ai_idx = 0, 0
         
-        while len(full_board) < 1000 and (player_idx < len(sorted_players) or ai_idx < len(sorted_ai)):
+        while len(full_board) < 100 and (player_idx < len(sorted_players) or ai_idx < len(sorted_ai)):
             player_score = func(sorted_players[player_idx]) if player_idx < len(sorted_players) else -1
             ai_score = func(sorted_ai[ai_idx]) if ai_idx < len(sorted_ai) else -1
 
@@ -452,7 +468,7 @@ def get_leaderboards():
                 full_board.append(sorted_ai[ai_idx])
                 ai_idx += 1
         
-        leaderboards[key] = [{"username": p[0], "value": func(p)} for p in full_board[:1000]]
+        leaderboards[key] = [{"username": p[0], "value": func(p)} for p in full_board[:100]]
 
     return jsonify(leaderboards)
 
