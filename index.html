@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Case Clicker - Staged</title>
+<link href="https://cdn.tailwindcss.com" rel="stylesheet">
+<style>body{background:#0f172a;color:#9be7ff;font-family:Arial} .btn{background:#06b6d4;padding:10px;border-radius:6px;color:#001}</style>
+</head>
+<body class="p-6">
+  <div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-bold mb-4">Case Clicker (Staged)</h1>
+    <div id="login-box" class="mb-4">
+      <input id="username" placeholder="username" class="p-2 mr-2 bg-gray-800 text-white"/>
+      <input id="password" placeholder="password" type="password" class="p-2 mr-2 bg-gray-800 text-white"/>
+      <button id="login" class="btn">Login</button>
+      <span id="login-msg"></span>
+    </div>
+    <div id="game" style="display:none;">
+      <div class="mb-4">
+        <h2>Player: <span id="me"></span></h2>
+        <p>Money: <span id="money">0</span> | Clicks: <span id="clicks">0</span></p>
+        <button id="clickbtn" class="btn">Click</button>
+      </div>
+      <div class="mb-4">
+        <h3>Shop</h3>
+        <div id="shop-list"></div>
+      </div>
+      <div class="mb-4">
+        <h3>Your Cases</h3>
+        <div id="my-cases"></div>
+      </div>
+      <div class="mb-4">
+        <h3>Skins</h3>
+        <label>Sort:
+          <select id="sort-select">
+            <option value="price_desc">Price high→low</option>
+            <option value="price_asc">Price low→high</option>
+            <option value="rarity">Rarity</option>
+            <option value="az">A–Z</option>
+            <option value="za">Z–A</option>
+          </select>
+        </label>
+        <div id="skins-list"></div>
+      </div>
+      <div class="mb-4">
+        <h3>Favorites</h3>
+        <div id="fav-list"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+let me = '';
+document.getElementById('login').onclick = async ()=>{
+  const u=document.getElementById('username').value, p=document.getElementById('password').value;
+  const res = await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+  const data = await res.json();
+  if (data.success){ me=data.username; document.getElementById('login-box').style.display='none'; document.getElementById('game').style.display='block'; document.getElementById('me').innerText=me; loadAll(); } else { document.getElementById('login-msg').innerText=data.message; }
+};
+
+async function loadAll(){
+  await loadShop();
+  await loadCases();
+  await loadSkins();
+}
+
+async function loadShop(){
+  const res = await fetch('/cases.json'); const data = await res.json();
+  const container = document.getElementById('shop-list'); container.innerHTML='';
+  for (const [name,info] of Object.entries(data)){
+    const div = document.createElement('div');
+    div.innerHTML = `<strong>${name}</strong> - $${info.price} <button onclick="buyCase('${name}')">Buy</button>`;
+    container.appendChild(div);
+  }
+}
+
+async function buyCase(name){
+  const res = await fetch('/buy_case',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:me,case_name:name,qty:1})});
+  const d = await res.json();
+  if (d.success){ alert('Bought'); loadCases(); loadSkins(); document.getElementById('money').innerText=d.money; } else alert(d.message);
+}
+
+async function loadCases(){
+  const res = await fetch('/get_cases?username='+encodeURIComponent(me));
+  const d = await res.json();
+  const c = document.getElementById('my-cases'); c.innerHTML='';
+  if (d.success){
+    for (const [name,count] of Object.entries(d.cases)){
+      const div = document.createElement('div');
+      div.innerHTML = `${name} x ${count} <button onclick="openCase('${name}')">Open</button>`;
+      c.appendChild(div);
+    }
+  }
+}
+
+async function openCase(name){
+  const res = await fetch('/open_case',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:me,case_name:name})});
+  const d = await res.json();
+  if (d.success){ alert('Unboxed: '+d.skin); loadCases(); loadSkins(); } else alert(d.message);
+}
+
+document.getElementById('clickbtn').onclick = async ()=>{
+  const res = await fetch('/click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:me})});
+  const d = await res.json();
+  if (d.success){ document.getElementById('clicks').innerText=d.clicks; document.getElementById('money').innerText=d.money; }
+};
+
+async function loadSkins(){
+  const res = await fetch('/get_skins?username='+encodeURIComponent(me));
+  const d = await res.json();
+  if (d.success){
+    document.getElementById('skins-list').innerHTML='';
+    for (const s of d.skins){
+      const div = document.createElement('div');
+      div.innerHTML = `${s} <button onclick="fav('${s}')">Fav</button>`;
+      document.getElementById('skins-list').appendChild(div);
+    }
+    document.getElementById('fav-list').innerHTML='';
+    for (const s of d.favorites){
+      const div = document.createElement('div');
+      div.innerHTML = `${s} <button onclick="unfav('${s}')">Unfav</button>`;
+      document.getElementById('fav-list').appendChild(div);
+    }
+    document.getElementById('sort-select').value = d.sort_order || 'price_desc';
+  }
+}
+
+document.getElementById('sort-select').onchange = async function(){
+  const order = this.value;
+  await fetch('/set_sort_order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:me,order})});
+  await loadSkins();
+};
+
+async function fav(s){
+  await fetch('/favorite_skin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:me,skin:s})});
+  await loadSkins();
+}
+async function unfav(s){
+  await fetch('/unfavorite_skin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:me,skin:s})});
+  await loadSkins();
+}
+</script>
+</body>
+</html>
