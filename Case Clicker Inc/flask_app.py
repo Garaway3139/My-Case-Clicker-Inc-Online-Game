@@ -38,20 +38,21 @@ def update_ai_players():
     if not ai_players:
         return
 
-    for _ in range(min(10, len(ai_players))): 
+    # Update a small fraction of AI players to simulate activity
+    for _ in range(min(10, len(ai_players))): # Update up to 10 AI players at a time
         player_name = random.choice(ai_players)
         player = DB["players"][player_name]
         player["clicks"] += random.randint(100, 1500)
         player["money"] += random.randint(200, 3000)
         player["time_played"] += random.randint(60, 300)
-        if random.random() < 0.1:
+        if random.random() < 0.1: # 10% chance to "open" a case
             player["cases_opened"] += random.randint(1, 5)
             player["monthly_cases_opened"] +=1
 
 
 def save_players_data():
     if PLAYERS_FILE:
-        if random.random() < 0.25:
+        if random.random() < 0.25: # 25% chance to update AI on any player save
             update_ai_players()
         with open(PLAYERS_FILE, 'w') as f:
             json.dump(DB["players"], f, indent=4)
@@ -101,6 +102,7 @@ def load_or_create_files():
             "player1": {"password_hash": "5d41402abc4b2a76b9719d911017c592", "role": "player", "clicks": 100, "money": 500, "skins": [], "cases": {}, "time_played": 0, "money_spent": 0, "cases_opened": 0, "monthly_clicks": 0, "monthly_cases_opened": 0, "is_chat_banned": False, "rank": 1, "has_changed_username": False, "has_changed_password": False}
         }
     
+    # Check for and generate AI players if they don't exist
     ai_player_count = sum(1 for p in DB["players"].values() if p.get("role") == "ai")
     if ai_player_count < 1000:
         print(f"🤖 Found {ai_player_count} AI players. Generating {1000 - ai_player_count} more...")
@@ -272,9 +274,9 @@ def update_profile():
 def handle_click():
     username = request.json.get('username')
     player = DB["players"][username]
-    player["clicks"] += 1
-    player["monthly_clicks"] += 1
-    player["money"] += random.uniform(1.0, 2.5)
+    player["clicks"] = player.get("clicks", 0) + 1
+    player["monthly_clicks"] = player.get("monthly_clicks", 0) + 1
+    player["money"] = player.get("money", 0) + random.uniform(1.0, 2.5)
     return jsonify({"success": True, "player_data": player})
 
 @app.route('/api/buy_case', methods=['POST'])
@@ -288,10 +290,11 @@ def buy_case():
     case_price = GAME_DATA["cases"].get(case_name, {}).get('price', 0)
     total_cost = case_price * quantity
     player = DB["players"][username]
-    if player["money"] < total_cost: return jsonify({"success": False, "message": "Not enough money!"})
+    if player.get("money", 0) < total_cost: return jsonify({"success": False, "message": "Not enough money!"})
     
     player["money"] -= total_cost
-    player["money_spent"] += total_cost
+    player["money_spent"] = player.get("money_spent", 0) + total_cost
+    if "cases" not in player: player["cases"] = {}
     player["cases"][case_name] = player["cases"].get(case_name, 0) + quantity
     save_players_data()
     return jsonify({"success": True, "player_data": player})
@@ -304,14 +307,15 @@ def open_case():
     if not case_name: return jsonify({"success": False, "message": "Invalid request"}), 400
     
     player = DB["players"][username]
-    if player["cases"].get(case_name, 0) < 1: return jsonify({"success": False, "message": "You don't have that case."})
+    if player.get("cases", {}).get(case_name, 0) < 1: return jsonify({"success": False, "message": "You don't have that case."})
     
     item_won = open_single_case_logic(case_name)
     if not item_won: return jsonify({"success": False, "message": "Invalid case data on server."})
     
     player["cases"][case_name] -= 1
-    player["cases_opened"] += 1
-    player["monthly_cases_opened"] += 1
+    player["cases_opened"] = player.get("cases_opened", 0) + 1
+    player["monthly_cases_opened"] = player.get("monthly_cases_opened", 0) + 1
+    if "skins" not in player: player["skins"] = []
     player["skins"].append(item_won)
     send_global_event(f"{username} unboxed a {item_won['name']}!")
     save_players_data()
@@ -325,10 +329,10 @@ def sell_skins():
     if not skin_ids: return jsonify({"success": False}), 400
     
     player = DB["players"][username]
-    skins_to_sell = [s for s in player["skins"] if s["id"] in skin_ids]
+    skins_to_sell = [s for s in player.get("skins", []) if s["id"] in skin_ids]
     total_value = sum(s['value'] for s in skins_to_sell)
-    player["skins"] = [s for s in player["skins"] if s["id"] not in skin_ids]
-    player["money"] += total_value
+    player["skins"] = [s for s in player.get("skins", []) if s["id"] not in skin_ids]
+    player["money"] = player.get("money", 0) + total_value
     save_players_data()
     return jsonify({"success": True, "player_data": player, "value": total_value, "count": len(skins_to_sell)})
 
