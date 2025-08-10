@@ -14,9 +14,11 @@ from datetime import datetime
 app = Flask(__name__)
 
 # --- Configuration ---
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
-PLAYERS_FILE = os.path.join(DATA_DIR, 'players.json')
-SERVER_STATE_FILE = os.path.join(DATA_DIR, 'server_state.json')
+# The BASE_DIR is the directory where this script is running.
+# We will look for all .json files in this same directory.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PLAYERS_FILE = os.path.join(BASE_DIR, 'players.json')
+SERVER_STATE_FILE = os.path.join(BASE_DIR, 'server_state.json')
 
 # --- In-Memory Database & Game Data ---
 DB = {
@@ -47,15 +49,14 @@ def load_or_create_files():
     """Loads all data from JSON files into memory, creating them if they don't exist."""
     # Game Data
     try:
-        if not os.path.exists(DATA_DIR):
-            os.makedirs(DATA_DIR)
-        with open(os.path.join(DATA_DIR, "rarities.json"), 'r') as f: GAME_DATA["rarities"] = json.load(f)
-        with open(os.path.join(DATA_DIR, "ranks.json"), 'r') as f: GAME_DATA["ranks"] = {int(k): v for k, v in json.load(f).items()}
-        with open(os.path.join(DATA_DIR, "skins.json"), 'r') as f: GAME_DATA["all_skins"] = json.load(f)
-        with open(os.path.join(DATA_DIR, "cases.json"), 'r') as f: GAME_DATA["cases"] = json.load(f)
+        # We now look for the files in the same directory as the flask_app.py script
+        with open(os.path.join(BASE_DIR, "rarities.json"), 'r') as f: GAME_DATA["rarities"] = json.load(f)
+        with open(os.path.join(BASE_DIR, "ranks.json"), 'r') as f: GAME_DATA["ranks"] = {int(k): v for k, v in json.load(f).items()}
+        with open(os.path.join(BASE_DIR, "skins.json"), 'r') as f: GAME_DATA["all_skins"] = json.load(f)
+        with open(os.path.join(BASE_DIR, "cases.json"), 'r') as f: GAME_DATA["cases"] = json.load(f)
         print("✅ Game data loaded successfully.")
     except Exception as e:
-        print(f"❌ FATAL ERROR: Could not load game data: {e}")
+        print(f"❌ FATAL ERROR: Could not load game data from '{BASE_DIR}': {e}")
         return False
 
     # Players Data
@@ -287,7 +288,14 @@ def handle_global_chat():
 @app.route('/api/admin/all_players')
 @role_required(['helpdesk', 'moderator', 'admin'])
 def get_all_players():
-    return jsonify(DB["players"])
+    # To prevent sending password hashes to the client, even staff
+    safe_players = {}
+    for uname, udata in DB["players"].items():
+        safe_data = udata.copy()
+        del safe_data["password_hash"]
+        safe_players[uname] = safe_data
+    return jsonify(safe_players)
+
 
 @app.route('/api/admin/update_player', methods=['POST'])
 @role_required(['moderator', 'admin'])
@@ -363,20 +371,28 @@ def get_leaderboards():
         return max(s['value'] for s in skins) if skins else 0
 
     leaderboards = {
-        "most_clicks": sorted(all_players, key=lambda p: p[1]['clicks'], reverse=True)[:10],
-        "most_money": sorted(all_players, key=lambda p: p[1]['money'], reverse=True)[:10],
-        "most_time_played": sorted(all_players, key=lambda p: p[1]['time_played'], reverse=True)[:10],
-        "most_money_spent": sorted(all_players, key=lambda p: p[1]['money_spent'], reverse=True)[:10],
+        "most_clicks": sorted(all_players, key=lambda p: p[1].get('clicks', 0), reverse=True)[:10],
+        "most_money": sorted(all_players, key=lambda p: p[1].get('money', 0), reverse=True)[:10],
+        "most_time_played": sorted(all_players, key=lambda p: p[1].get('time_played', 0), reverse=True)[:10],
+        "most_money_spent": sorted(all_players, key=lambda p: p[1].get('money_spent', 0), reverse=True)[:10],
         "inventory_value": sorted(all_players, key=get_inv_value, reverse=True)[:10],
         "highest_skin_value": sorted(all_players, key=get_highest_skin, reverse=True)[:10],
-        "most_cases_opened": sorted(all_players, key=lambda p: p[1]['cases_opened'], reverse=True)[:10],
-        "monthly_clicks": sorted(all_players, key=lambda p: p[1]['monthly_clicks'], reverse=True)[:10],
-        "monthly_cases_opened": sorted(all_players, key=lambda p: p[1]['monthly_cases_opened'], reverse=True)[:10],
+        "most_cases_opened": sorted(all_players, key=lambda p: p[1].get('cases_opened', 0), reverse=True)[:10],
+        "monthly_clicks": sorted(all_players, key=lambda p: p[1].get('monthly_clicks', 0), reverse=True)[:10],
+        "monthly_cases_opened": sorted(all_players, key=lambda p: p[1].get('monthly_cases_opened', 0), reverse=True)[:10],
     }
 
     # Sanitize data for frontend
     for category, board in leaderboards.items():
-        leaderboards[category] = [{"username": p[0], "value": p[1].get(category.replace("most_","").replace("monthly_",""), get_inv_value(p) if category == 'inventory_value' else get_highest_skin(p) if category == 'highest_skin_value' else p[1].get(category, 0)) } for p in board]
+        if category == 'inventory_value':
+             leaderboards[category] = [{"username": p[0], "value": get_inv_value(p)} for p in board]
+        elif category == 'highest_skin_value':
+             leaderboards[category] = [{"username": p[0], "value": get_highest_skin(p)} for p in board]
+        else:
+            key = category.replace("most_", "")
+            if 'monthly' in key:
+                key = key.replace("monthly_", "monthly_")
+            leaderboards[category] = [{"username": p[0], "value": p[1].get(key, 0)} for p in board]
 
     return jsonify(leaderboards)
 
