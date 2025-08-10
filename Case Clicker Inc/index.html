@@ -19,6 +19,8 @@
         .skin-card { transition: all 0.2s ease-in-out; }
         .skin-card.selected { border-color: #00ffff; transform: scale(1.05); box-shadow: 0 0 15px rgba(0, 255, 255, 0.5); }
         .tab-button.active { background-color: #0891b2; color: white; }
+        .tier-button { transition: background-color 0.2s; }
+        .tier-button.active { background-color: #06b6d4; color: white; }
     </style>
 </head>
 <body class="bg-gray-900 text-cyan-300 overflow-hidden h-screen">
@@ -29,7 +31,7 @@
         <div class="flex-grow flex flex-col gap-4 w-full md:w-1/3">
             <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
                 <div class="flex justify-between items-center">
-                    <h2 id="username-display" class="text-2xl font-bold text-white">Player</h2>
+                    <h2 id="username-display" class="text-2xl font-bold text-white cursor-pointer hover:text-cyan-400" onclick="openModal('profile-modal')">Player</h2>
                     <button id="logout-button" class="bg-red-600 hover:bg-red-500 text-white text-sm font-bold py-1 px-3 rounded-lg">Logout</button>
                 </div>
                 <p class="text-lg">Rank: <span id="rank-stat" class="font-mono text-yellow-400"></span></p>
@@ -88,12 +90,48 @@
     
     <!-- Modals -->
     <div id="shop-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-20">
-        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-4xl h-5/6 flex flex-col p-4">
+        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-6xl h-5/6 flex flex-col p-4">
             <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
                 <h2 class="text-2xl text-white font-bold">Case Shop</h2>
-                <button onclick="closeModal('shop-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                <div class="flex items-center gap-4">
+                    <span class="text-lg text-green-400 font-mono">💰 <span id="shop-money-display">0</span></span>
+                    <select id="shop-sort" class="bg-gray-700 text-white rounded p-2">
+                        <option value="lth">Price: Low to High</option>
+                        <option value="htl">Price: High to Low</option>
+                    </select>
+                    <button onclick="closeModal('shop-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
             </div>
-            <div id="shop-case-list" class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-2"></div>
+            <div id="shop-tier-buttons" class="flex flex-wrap gap-2 p-2 overflow-x-auto">
+                <!-- Tier buttons will be generated here -->
+            </div>
+            <div id="shop-case-list" class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-2"></div>
+        </div>
+    </div>
+
+    <div id="profile-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-40">
+        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-md flex flex-col p-6">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-3 mb-4">
+                <h2 class="text-2xl text-white font-bold">Manage Profile</h2>
+                <button onclick="closeModal('profile-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-gray-400 mb-1">Change Username (1 time only)</label>
+                    <input type="text" id="new-username-input" class="w-full bg-gray-700 text-white rounded-lg p-3" placeholder="Enter new username">
+                </div>
+                <div>
+                    <label class="block text-gray-400 mb-1">Change Password (1 time only)</label>
+                    <input type="password" id="new-password-input" class="w-full bg-gray-700 text-white rounded-lg p-3" placeholder="Enter new password">
+                </div>
+                <hr class="border-gray-600">
+                <div>
+                    <label class="block text-gray-400 mb-1">Current Password (Required to save)</label>
+                    <input type="password" id="current-password-input" class="w-full bg-gray-700 text-white rounded-lg p-3" placeholder="Enter current password">
+                </div>
+            </div>
+            <p id="profile-message" class="text-center h-6 mt-4"></p>
+            <button id="save-profile-button" class="w-full mt-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-lg text-lg">Save Changes</button>
         </div>
     </div>
 
@@ -153,7 +191,6 @@
                                 </tr>
                             </thead>
                             <tbody id="staff-player-list">
-                                <!-- Player rows will be injected here -->
                             </tbody>
                         </table>
                     </div>
@@ -186,10 +223,9 @@ let gameState = {
     lastGlobalChatId: '0',
     selectedSkinIds: new Set(),
 };
-let gameData = {
-    cases: {}, skins: {}, rarities: {}, ranks: {}
-};
+let gameData = { cases: {}, skins: {}, rarities: {}, ranks: {} };
 let updateInterval;
+let shopState = { tier: 1, sort: 'lth' };
 
 // --- DOM Elements ---
 const loginScreen = document.getElementById('login-screen');
@@ -219,11 +255,23 @@ const staffPanelButton = document.getElementById('staff-panel-button');
 const staffPlayerList = document.getElementById('staff-player-list');
 const leaderboardContent = document.getElementById('leaderboard-content');
 const logoutButton = document.getElementById('logout-button');
+const shopMoneyDisplay = document.getElementById('shop-money-display');
+const shopSort = document.getElementById('shop-sort');
+const shopTierButtons = document.getElementById('shop-tier-buttons');
+const newUsernameInput = document.getElementById('new-username-input');
+const newPasswordInput = document.getElementById('new-password-input');
+const currentPasswordInput = document.getElementById('current-password-input');
+const saveProfileButton = document.getElementById('save-profile-button');
+const profileMessage = document.getElementById('profile-message');
 
 // --- Helper Functions ---
 function formatNumber(num) {
     if (num === null || num === undefined) return '0';
-    return num.toLocaleString('en-US');
+    const suffixes = ['', 'K', 'M', 'B', 'T', 'q', 'Q', 's', 'S'];
+    if (num < 1000) return Math.floor(num).toLocaleString();
+    const i = Math.floor(Math.log10(num) / 3);
+    const shortNum = (num / Math.pow(1000, i)).toFixed(2);
+    return shortNum + suffixes[i];
 }
 
 function getRarityStyle(skinName) {
@@ -251,15 +299,28 @@ async function apiRequest(endpoint, body = {}, method = 'POST') {
             options.body = JSON.stringify(body);
         }
         const response = await fetch(`${API_URL}${endpoint}`, options);
-        const data = await response.json();
+        const text = await response.text();
         if (!response.ok) {
-            throw new Error(data.message || `HTTP error! status: ${response.status}`);
+             throw new Error(text || `HTTP error! status: ${response.status}`);
         }
+        // Handle cases where the server might send an empty but successful response
+        if (!text) {
+            return { success: true };
+        }
+        const data = JSON.parse(text);
         return data;
     } catch (error) {
         console.error(`API request to ${endpoint} failed:`, error);
-        if (endpoint.includes('login') || endpoint.includes('signup')) {
-            loginError.textContent = error.message;
+        try {
+            const jsonData = JSON.parse(error.message);
+            if (endpoint.includes('login') || endpoint.includes('signup')) {
+                loginError.textContent = jsonData.message;
+            }
+            return { success: false, message: jsonData.message };
+        } catch(e) {
+             if (endpoint.includes('login') || endpoint.includes('signup')) {
+                loginError.textContent = "An unexpected server error occurred.";
+            }
         }
         return { success: false, message: error.message };
     }
@@ -269,6 +330,8 @@ async function apiRequest(endpoint, body = {}, method = 'POST') {
 function openModal(modalId) {
     if (modalId === 'staff-modal') renderStaffPanel();
     if (modalId === 'leaderboard-modal') renderLeaderboards();
+    if (modalId === 'shop-modal') renderShop();
+    if (modalId === 'profile-modal') prepareProfileModal();
     document.getElementById(modalId).classList.add('active');
 }
 function closeModal(modalId) {
@@ -278,10 +341,11 @@ function closeModal(modalId) {
 // --- UI Update Functions ---
 function updateStats() {
     const player = gameState.playerData;
-    moneyStat.textContent = `$${formatNumber(Math.floor(player.money))}`;
+    moneyStat.textContent = `$${formatNumber(player.money)}`;
     clicksStat.textContent = formatNumber(player.clicks);
     const rank = gameData.ranks[player.rank] || {name: 'Unranked'};
     rankStat.textContent = rank.name;
+    shopMoneyDisplay.textContent = formatNumber(player.money);
 }
 
 function updatePlayerList() {
@@ -329,12 +393,21 @@ function updateChat(messages) {
 
 function renderShop() {
     shopCaseList.innerHTML = '';
-    Object.entries(gameData.cases).sort(([,a],[,b]) => a.price - b.price).forEach(([name, caseInfo]) => {
+    let cases = Object.entries(gameData.cases)
+        .filter(([, caseInfo]) => caseInfo.tier === shopState.tier);
+
+    if (shopState.sort === 'htl') {
+        cases.sort(([,a],[,b]) => b.price - a.price);
+    } else {
+        cases.sort(([,a],[,b]) => a.price - b.price);
+    }
+
+    cases.forEach(([name, caseInfo]) => {
         const caseDiv = document.createElement('div');
         caseDiv.className = 'bg-gray-700 p-4 rounded-lg flex flex-col justify-between';
         caseDiv.innerHTML = `
             <div>
-                <h4 class="text-lg font-bold text-white">${name}</h4>
+                <h4 class="text-lg font-bold text-white truncate">${name}</h4>
                 <p class="text-green-400 font-mono">$${formatNumber(caseInfo.price)}</p>
             </div>
             <div class="flex gap-2 mt-4">
@@ -354,6 +427,27 @@ function renderShop() {
             }
         });
         shopCaseList.appendChild(caseDiv);
+    });
+}
+
+function setupShopControls() {
+    shopTierButtons.innerHTML = '';
+    for(let i = 1; i <= 20; i++) {
+        const button = document.createElement('button');
+        button.className = `tier-button bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg`;
+        button.textContent = `T${i}`;
+        if (i === shopState.tier) button.classList.add('active');
+        button.addEventListener('click', () => {
+            shopState.tier = i;
+            document.querySelectorAll('.tier-button').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            renderShop();
+        });
+        shopTierButtons.appendChild(button);
+    }
+    shopSort.addEventListener('change', (e) => {
+        shopState.sort = e.target.value;
+        renderShop();
     });
 }
 
@@ -443,7 +537,7 @@ async function handleLogin() {
         await initializeGameData();
         updateStats();
         updateInventory();
-        renderShop();
+        setupShopControls();
 
         updateLoop();
         updateInterval = setInterval(updateLoop, 3000);
@@ -469,7 +563,7 @@ async function handleSignup() {
     signupButton.textContent = 'Sign Up';
 
     if (response.success) {
-        loginError.textContent = response.message; // "Account created..."
+        loginError.textContent = response.message; 
     } else {
         loginError.textContent = response.message || 'Sign up failed.';
     }
@@ -490,7 +584,7 @@ async function handleSendChat() {
     chatInput.value = '';
     const result = await apiRequest('/api/chat/global', { username: gameState.username, message: message });
     if (!result.success) {
-        alert(result.message); // e.g., "You are chat banned"
+        alert(result.message);
     }
 }
 
@@ -534,6 +628,63 @@ async function handleSellSkins() {
     }
 }
 
+function prepareProfileModal() {
+    newUsernameInput.value = '';
+    newPasswordInput.value = '';
+    currentPasswordInput.value = '';
+    profileMessage.textContent = '';
+    profileMessage.className = 'text-center h-6 mt-4';
+
+    newUsernameInput.disabled = gameState.playerData.has_changed_username;
+    if(newUsernameInput.disabled) newUsernameInput.placeholder = "Username already changed";
+    
+    newPasswordInput.disabled = gameState.playerData.has_changed_password;
+    if(newPasswordInput.disabled) newPasswordInput.placeholder = "Password already changed";
+}
+
+async function handleSaveProfile() {
+    const current_password = currentPasswordInput.value;
+    const new_username = newUsernameInput.value;
+    const new_password = newPasswordInput.value;
+
+    if (!current_password) {
+        profileMessage.textContent = 'Current password is required.';
+        profileMessage.classList.add('text-red-400');
+        return;
+    }
+    if (!new_username && !new_password) {
+        profileMessage.textContent = 'Enter a new username or password.';
+        profileMessage.classList.add('text-red-400');
+        return;
+    }
+
+    const body = {
+        username: gameState.username,
+        current_password: current_password,
+        new_username: new_username || null,
+        new_password: new_password || null,
+    };
+
+    const result = await apiRequest('/api/update_profile', body);
+    if (result.success) {
+        profileMessage.textContent = result.message;
+        profileMessage.className = 'text-center h-6 mt-4 text-green-400';
+        if (result.new_username) {
+            alert("Username changed! You will be logged out.");
+            handleLogout();
+        } else {
+            // Refresh player data to get updated flags
+            const state = await apiRequest('/api/game_state', { username: gameState.username, last_chat_id: gameState.lastGlobalChatId });
+            if(state.success) gameState.playerData = state.player_data;
+            prepareProfileModal();
+        }
+    } else {
+        profileMessage.textContent = result.message;
+        profileMessage.className = 'text-center h-6 mt-4 text-red-400';
+    }
+}
+
+
 // --- Leaderboards ---
 async function renderLeaderboards() {
     const data = await apiRequest('/api/leaderboards', {}, 'GET');
@@ -549,7 +700,7 @@ async function renderLeaderboards() {
         const boardDiv = document.createElement('div');
         boardDiv.className = 'bg-gray-700 p-3 rounded-lg';
         let listHtml = `<h4 class="text-white font-bold text-lg mb-2">${board}</h4><ol class="list-decimal list-inside space-y-1">`;
-        boardData.forEach(p => {
+        boardData.slice(0, 100).forEach(p => { // Only show top 100
             listHtml += `<li class="truncate">${p.username} - <span class="font-mono text-green-300">${formatNumber(Math.floor(p.value))}</span></li>`;
         });
         listHtml += '</ol>';
@@ -564,7 +715,7 @@ async function renderStaffPanel() {
     staffPlayerList.innerHTML = '';
     const currentUserRole = gameState.playerData.role;
 
-    Object.entries(allPlayers).sort(([a],[b])=>a.localeCompare(b)).forEach(([username, data]) => {
+    Object.entries(allPlayers).filter(([name]) => !name.startsWith("AI_Player_")).sort(([a],[b])=>a.localeCompare(b)).forEach(([username, data]) => {
         const tr = document.createElement('tr');
         tr.className = 'border-b border-gray-700 hover:bg-gray-800';
 
@@ -590,21 +741,24 @@ async function renderStaffPanel() {
         staffPlayerList.appendChild(tr);
     });
     
-    // Add event listeners for the new buttons
     staffPlayerList.querySelectorAll('button').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const targetUser = e.target.dataset.user;
-            if(e.target.dataset.ban) { // Ban/Unban button
+            if(e.target.dataset.ban) {
                 const isBanned = e.target.dataset.ban === 'true';
                 await apiRequest('/api/helpdesk/set_chat_ban', {username: gameState.username, target_user: targetUser, is_banned: isBanned});
-            } else { // Edit button
+            } else {
                 const updates = {};
-                staffPlayerList.querySelectorAll(`[data-user="${targetUser}"] .staff-edit`).forEach(input => {
-                    updates[input.dataset.field] = input.value;
+                document.querySelectorAll(`#staff-player-list tr`).forEach(row => {
+                    if(row.querySelector('td').textContent === targetUser) {
+                        row.querySelectorAll('.staff-edit').forEach(input => {
+                            updates[input.dataset.field] = input.value;
+                        });
+                    }
                 });
                 await apiRequest('/api/admin/update_player', {username: gameState.username, target_user: targetUser, updates: updates});
             }
-            renderStaffPanel(); // Refresh panel
+            renderStaffPanel();
         });
     });
 }
@@ -647,6 +801,7 @@ window.addEventListener('load', () => {
     signupButton.addEventListener('click', handleSignup);
     passwordInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleLogin(); });
     logoutButton.addEventListener('click', handleLogout);
+    saveProfileButton.addEventListener('click', handleSaveProfile);
 
     clickButton.addEventListener('click', async () => {
         const result = await apiRequest('/api/click', { username: gameState.username });
