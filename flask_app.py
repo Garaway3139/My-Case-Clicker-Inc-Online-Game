@@ -480,8 +480,8 @@ def api_get_cases():
 
 @app.route('/admin', methods=['POST'])
 def admin_panel():
-    \"\"\"Protected admin route. Expects JSON with 'username'. Uses role check but returns
-       a helpful error message instead of crashing.\"\"\"
+    """Protected admin route. Expects JSON with 'username'. Uses role check but returns
+       a helpful error message instead of crashing."""
     try:
         data = request.get_json(force=True, silent=True) or {}
         username = data.get('username')
