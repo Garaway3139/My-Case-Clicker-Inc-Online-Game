@@ -38,21 +38,20 @@ def update_ai_players():
     if not ai_players:
         return
 
-    # Update a small fraction of AI players to simulate activity
-    for _ in range(min(10, len(ai_players))): # Update up to 10 AI players at a time
+    for _ in range(min(10, len(ai_players))): 
         player_name = random.choice(ai_players)
         player = DB["players"][player_name]
         player["clicks"] += random.randint(100, 1500)
         player["money"] += random.randint(200, 3000)
         player["time_played"] += random.randint(60, 300)
-        if random.random() < 0.1: # 10% chance to "open" a case
+        if random.random() < 0.1:
             player["cases_opened"] += random.randint(1, 5)
             player["monthly_cases_opened"] +=1
 
 
 def save_players_data():
     if PLAYERS_FILE:
-        if random.random() < 0.25: # 25% chance to update AI on any player save
+        if random.random() < 0.25:
             update_ai_players()
         with open(PLAYERS_FILE, 'w') as f:
             json.dump(DB["players"], f, indent=4)
@@ -102,7 +101,6 @@ def load_or_create_files():
             "player1": {"password_hash": "5d41402abc4b2a76b9719d911017c592", "role": "player", "clicks": 100, "money": 500, "skins": [], "cases": {}, "time_played": 0, "money_spent": 0, "cases_opened": 0, "monthly_clicks": 0, "monthly_cases_opened": 0, "is_chat_banned": False, "rank": 1, "has_changed_username": False, "has_changed_password": False}
         }
     
-    # Check for and generate AI players if they don't exist
     ai_player_count = sum(1 for p in DB["players"].values() if p.get("role") == "ai")
     if ai_player_count < 1000:
         print(f"🤖 Found {ai_player_count} AI players. Generating {1000 - ai_player_count} more...")
@@ -360,7 +358,7 @@ def get_all_players():
 @app.route('/api/admin/server_stats')
 @role_required(['admin'])
 def get_server_stats():
-    real_players = [p for p in DB["players"].values() if p.get("role") != "ai"]
+    real_players = [p for p in DB["players"].values() if p.get("role") not in ["ai", None]]
     total_money = sum(p.get("money", 0) for p in real_players)
     total_clicks = sum(p.get("clicks", 0) for p in real_players)
     total_skins = sum(len(p.get("skins", [])) for p in real_players)
