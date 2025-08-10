@@ -469,7 +469,7 @@ def get_ranks(): return jsonify(GAME_DATA["ranks"])
 # -------------------- Additional safe API endpoints --------------------
 @app.route('/get_cases', methods=['GET'])
 def api_get_cases():
-    \"\"\"Return the available cases safely. Never crash if game data missing.\"\"\"
+    """Return the available cases safely. Never crash if game data missing."""
     try:
         if not GAME_DATA.get("cases"):
             return jsonify({"success": False, "message": "No cases available.", "cases": {}}), 200
