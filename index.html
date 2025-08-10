@@ -11,26 +11,26 @@
         .modal.active { display: flex; }
         .chat-message { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .chat-tab.active { background-color: #0891b2; border-color: #0891b2; }
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #1a202c; }
         ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
+        .chat-tab.active { background-color: #0891b2; color: white; }
     </style>
 </head>
 <body class="bg-gray-900 text-cyan-300 overflow-hidden h-screen">
 
-    <!-- Game Container -->
     <div id="game-container" class="hidden w-full h-screen p-4 flex flex-col md:flex-row gap-4">
-        <!-- Left Panel -->
         <div class="flex-grow flex flex-col gap-4 w-full md:w-1/3">
             <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
                 <div class="flex justify-between items-center">
                     <h2 id="username-display" class="text-2xl font-bold text-white">Player</h2>
                     <button id="logout-button" class="bg-red-600 hover:bg-red-500 text-white text-sm font-bold py-1 px-3 rounded-lg">Logout</button>
                 </div>
-                <p>Rank: <span id="rank-stat" class="font-mono text-yellow-400"></span></p>
-                <p>💰 Money: <span id="money-stat" class="font-mono text-green-400">0</span></p>
-                <p>🖱️ Clicks: <span id="clicks-stat" class="font-mono text-yellow-400">0</span></p>
+                <div class="grid grid-cols-2 gap-2 mt-2 text-lg">
+                    <p>Rank: <span id="rank-stat" class="font-mono text-yellow-400"></span></p>
+                    <p>💰 Money: <span id="money-stat" class="font-mono text-green-400">0</span></p>
+                    <p>🖱️ Clicks: <span id="clicks-stat" class="font-mono text-yellow-400">0</span></p>
+                </div>
             </div>
             <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow flex flex-col items-center justify-center">
                 <button id="click-button" class="bg-cyan-500 hover:bg-cyan-400 text-gray-900 font-bold text-4xl py-16 px-24 rounded-full">Click!</button>
@@ -43,11 +43,11 @@
             </div>
         </div>
 
-        <!-- Right Panel (Chat) -->
         <div class="flex flex-col gap-4 w-full md:w-2/3 h-full">
             <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow flex flex-col h-1/2">
                 <div id="chat-tabs" class="flex border-b border-gray-700 mb-2"></div>
                 <div id="chat-area" class="flex-grow overflow-y-auto mb-2 pr-2 space-y-2"></div>
+                <div id="private-chat-target" class="hidden mb-2 text-sm"></div>
                 <div class="flex gap-2">
                     <input type="text" id="chat-input" class="flex-grow bg-gray-700 text-white rounded-lg p-2" placeholder="Type a message...">
                     <button id="send-chat-button" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg">Send</button>
@@ -56,7 +56,6 @@
         </div>
     </div>
 
-    <!-- Login Screen -->
     <div id="login-screen" class="w-full h-screen flex items-center justify-center">
         <div class="bg-gray-800 p-8 rounded-lg shadow-2xl text-center w-full max-w-sm">
             <h1 class="text-4xl font-bold text-white mb-6">Case Clicker Inc.</h1>
@@ -70,10 +69,68 @@
         </div>
     </div>
     
-    <!-- Modals -->
-    <div id="inventory-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-20">
+    <div id="shop-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-20"></div>
+    <div id="inventory-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-20"></div>
+    <div id="leaderboard-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-20"></div>
+    <div id="staff-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-30"></div>
+    <div id="unboxing-modal" class="modal fixed inset-0 bg-black bg-opacity-85 items-center justify-center z-50"></div>
+
+<script>
+// --- Client-Side Game Logic ---
+const API_URL = window.location.origin;
+let gameState = { 
+    username: null, 
+    playerData: {}, 
+    onlinePlayers: [], 
+    chats: { global: [], staff: {} }, 
+    activeChat: { channel: 'global', target: null } 
+};
+let gameData = {};
+let updateInterval;
+
+// --- API Helper ---
+async function apiRequest(endpoint, body = {}, method = 'POST') {
+    try {
+        const options = {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: method !== 'GET' ? JSON.stringify(body) : undefined
+        };
+        const response = await fetch(`${API_URL}${endpoint}`, options);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'An unknown server error occurred.');
+        return data;
+    } catch (error) {
+        console.error(`API Error at ${endpoint}:`, error);
+        return { success: false, message: error.message };
+    }
+}
+
+// --- Modal Management ---
+function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modalId === 'staff-modal') renderAdminPanel();
+    if (modalId === 'leaderboard-modal') renderLeaderboards();
+    if (modalId === 'inventory-modal') renderInventory();
+    modal.classList.add('active');
+}
+function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
+
+// --- UI Rendering ---
+function updateStats() {
+    const p = gameState.playerData;
+    document.getElementById('username-display').textContent = gameState.username;
+    document.getElementById('money-stat').textContent = `$${(p.money || 0).toLocaleString()}`;
+    document.getElementById('clicks-stat').textContent = (p.clicks || 0).toLocaleString();
+    const rankName = gameData.ranks?.[p.rank]?.name || 'Unranked';
+    document.getElementById('rank-stat').textContent = rankName;
+}
+
+function renderInventory() {
+    const modal = document.getElementById('inventory-modal');
+    modal.innerHTML = `
         <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-6xl h-5/6 flex flex-col p-4">
-             <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
                 <h2 class="text-2xl text-white font-bold">Inventory</h2>
                 <button onclick="closeModal('inventory-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
             </div>
@@ -87,126 +144,118 @@
                     <div id="inventory-skin-list" class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-lg grid grid-cols-2 md:grid-cols-4 gap-2"></div>
                 </div>
             </div>
-        </div>
-    </div>
-    
-    <div id="leaderboard-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-20">
-        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-5xl h-5/6 flex flex-col p-4">
-            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-4">
-                <h2 class="text-2xl text-white font-bold">Leaderboards</h2>
-                <button onclick="closeModal('leaderboard-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
-            </div>
-            <div id="leaderboard-content" class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-3 gap-4"></div>
-        </div>
-    </div>
+        </div>`;
 
-    <div id="staff-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-30">
-        <div id="admin-panel-content" class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl h-5/6 flex flex-col p-4"></div>
-    </div>
-
-    <!-- Other modals like shop, unboxing etc. can be added here -->
-
-<script>
-// --- Client-Side Game Logic ---
-const API_URL = window.location.origin;
-let gameState = { username: null, playerData: {}, onlinePlayers: [], chats: {}, activeChat: 'global' };
-let gameData = {};
-let updateInterval;
-
-// --- DOM Elements ---
-const loginScreen = document.getElementById('login-screen');
-const gameContainer = document.getElementById('game-container');
-// ... (add all other getElementById calls here for cleanliness)
-
-// --- API Helper ---
-async function apiRequest(endpoint, body = {}, method = 'POST') {
-    try {
-        const options = {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: method !== 'GET' ? JSON.stringify(body) : undefined
-        };
-        const response = await fetch(`${API_URL}${endpoint}`, options);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Server error');
-        return data;
-    } catch (error) {
-        console.error(`API Error at ${endpoint}:`, error);
-        return { success: false, message: error.message };
-    }
-}
-
-// --- Modals ---
-function openModal(modalId) {
-    if (modalId === 'staff-modal') renderAdminPanel();
-    if (modalId === 'leaderboard-modal') renderLeaderboards();
-    document.getElementById(modalId).classList.add('active');
-}
-function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
-
-// --- UI Update Functions ---
-function updateStats() {
-    const p = gameState.playerData;
-    document.getElementById('username-display').textContent = gameState.username;
-    document.getElementById('money-stat').textContent = `$${p.money.toLocaleString()}`;
-    document.getElementById('clicks-stat').textContent = p.clicks.toLocaleString();
-    const rankName = gameData.ranks?.[p.rank]?.name || 'Unranked';
-    document.getElementById('rank-stat').textContent = rankName;
-}
-
-function updateInventory() {
     const caseList = document.getElementById('inventory-case-list');
     caseList.innerHTML = '';
-    Object.entries(gameState.playerData.cases || {}).forEach(([name, count]) => {
+    Object.entries(gameState.playerData.cases || {}).sort(([a],[b])=> a.localeCompare(b)).forEach(([name, count]) => {
         if (count > 0) {
             const div = document.createElement('div');
             div.className = 'bg-gray-700 p-2 rounded mb-2 flex justify-between items-center';
-            div.innerHTML = `<span>${name} (x${count})</span><button class="bg-green-600 p-1 rounded text-sm">Open</button>`;
+            div.innerHTML = `<div><p class="font-bold">${name}</p><p class="text-sm text-gray-400">Owned: ${count}</p></div><button class="bg-green-600 p-2 rounded text-sm font-bold">Open</button>`;
             div.querySelector('button').onclick = () => handleOpenCase(name);
             caseList.appendChild(div);
         }
     });
     const skinList = document.getElementById('inventory-skin-list');
     skinList.innerHTML = '';
-    (gameState.playerData.skins || []).forEach(skin => {
+    (gameState.playerData.skins || []).sort((a,b) => b.value - a.value).forEach(skin => {
         const div = document.createElement('div');
         div.className = 'bg-gray-700 p-2 rounded';
-        div.innerHTML = `<p>${skin.name}</p><p class="text-green-400 text-sm">$${skin.value.toLocaleString()}</p>`;
+        div.innerHTML = `<p class="font-bold truncate">${skin.name}</p><p class="text-green-400 text-sm">$${skin.value.toLocaleString()}</p>`;
         skinList.appendChild(div);
     });
     document.getElementById('skin-count').textContent = (gameState.playerData.skins || []).length;
 }
 
-// --- Chat System ---
-function setupChatTabs() {
-    const tabs = document.getElementById('chat-tabs');
-    tabs.innerHTML = '';
-    let availableTabs = ['global'];
-    if (['helpdesk', 'moderator', 'admin'].includes(gameState.playerData.role)) {
-        availableTabs.push('staff');
-    }
-    // Logic for private chats would add more tabs here
-    availableTabs.forEach(tabName => {
-        const tab = document.createElement('button');
-        tab.className = 'chat-tab px-4 py-2 border-b-2 border-transparent';
-        tab.textContent = tabName.charAt(0).toUpperCase() + tabName.slice(1);
-        if (tabName === gameState.activeChat) tab.classList.add('active');
-        tab.onclick = () => switchChatTab(tabName);
-        tabs.appendChild(tab);
+function renderLeaderboards() {
+    const modal = document.getElementById('leaderboard-modal');
+    modal.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-5xl h-5/6 flex flex-col p-4">
+        <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-4">
+            <h2 class="text-2xl text-white font-bold">Leaderboards</h2>
+            <button onclick="closeModal('leaderboard-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+        </div>
+        <div id="leaderboard-content" class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-3 gap-4">Loading...</div>
+    </div>`;
+
+    apiRequest('/api/leaderboards', {}, 'GET').then(data => {
+        const content = document.getElementById('leaderboard-content');
+        content.innerHTML = '';
+        const boardTitles = {
+            most_clicks: "Most Clicks", most_money: "Richest Players",
+            inventory_value: "Highest Inventory Value", highest_skin_value: "Most Valuable Skin",
+            most_cases_opened: "Most Cases Opened"
+        };
+        for (const [key, title] of Object.entries(boardTitles)) {
+            const boardData = data[key] || [];
+            const div = document.createElement('div');
+            div.className = 'bg-gray-900 p-3 rounded-lg';
+            let listHtml = `<h4 class="text-white font-bold text-lg mb-2">${title}</h4><ol class="list-decimal list-inside space-y-1 text-sm">`;
+            boardData.forEach(p => {
+                listHtml += `<li class="truncate">${p.username} - <span class="font-mono text-green-300">${(p.value || 0).toLocaleString()}</span></li>`;
+            });
+            listHtml += '</ol>';
+            div.innerHTML = listHtml;
+            content.appendChild(div);
+        }
     });
 }
-function switchChatTab(channel) {
-    gameState.activeChat = channel;
+
+// --- Chat System ---
+function setupChatTabs() {
+    const tabsContainer = document.getElementById('chat-tabs');
+    tabsContainer.innerHTML = '';
+    let availableTabs = { global: 'Global' };
+    if (['helpdesk', 'moderator', 'admin'].includes(gameState.playerData.role)) {
+        availableTabs.staff = 'Staff';
+    }
+    
+    // Add open private chats to tabs
+    Object.keys(gameState.chats).forEach(key => {
+        if (key !== 'global' && key !== 'staff') {
+            const otherUser = key.split('-').find(name => name !== gameState.username);
+            availableTabs[key] = `Private: ${otherUser}`;
+        }
+    });
+
+    for (const channelId in availableTabs) {
+        const tab = document.createElement('button');
+        tab.className = 'chat-tab px-4 py-2 text-sm';
+        tab.textContent = availableTabs[channelId];
+        const isActive = gameState.activeChat.channel === channelId || (gameState.activeChat.channel === 'private' && channelId.includes(gameState.activeChat.target));
+        if (isActive) tab.classList.add('active');
+        
+        tab.onclick = () => {
+            const target = channelId.includes('-') ? channelId.split('-').find(u => u !== gameState.username) : null;
+            const channel = target ? 'private' : channelId;
+            switchChatTab(channel, target);
+        };
+        tabsContainer.appendChild(tab);
+    }
+}
+function switchChatTab(channel, target = null) {
+    gameState.activeChat = { channel, target };
+    const targetEl = document.getElementById('private-chat-target');
+    if (target) {
+        targetEl.textContent = `Chatting with ${target}`;
+        targetEl.classList.remove('hidden');
+    } else {
+        targetEl.classList.add('hidden');
+    }
     setupChatTabs();
     renderChatMessages();
 }
 function renderChatMessages() {
     const chatArea = document.getElementById('chat-area');
     chatArea.innerHTML = '';
-    const messages = gameState.chats[gameState.activeChat] || [];
+    let currentChannelId = gameState.activeChat.channel;
+    if (currentChannelId === 'private') {
+        currentChannelId = [gameState.username, gameState.activeChat.target].sort().join('-');
+    }
+    const messages = gameState.chats[currentChannelId] || [];
     messages.forEach(msg => {
         const div = document.createElement('div');
-        div.innerHTML = `<strong style="color: cyan;">${msg.sender}:</strong> ${msg.msg}`;
+        div.innerHTML = `<strong class="font-bold text-cyan-400">${msg.sender}:</strong> ${msg.msg}`;
         chatArea.appendChild(div);
     });
     chatArea.scrollTop = chatArea.scrollHeight;
@@ -214,27 +263,29 @@ function renderChatMessages() {
 
 // --- Admin Panel ---
 async function renderAdminPanel() {
-    const panel = document.getElementById('admin-panel-content');
-    panel.innerHTML = `
-        <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
-            <h2 class="text-2xl text-white font-bold">Admin Panel</h2>
-            <button onclick="closeModal('staff-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
-        </div>
-        <div class="flex flex-grow overflow-hidden gap-4 h-full">
-            <div class="w-1/3 flex flex-col h-full">
-                <input type="text" id="player-search-input" placeholder="Search players..." class="w-full bg-gray-900 p-2 rounded mb-2">
-                <div id="admin-player-list" class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-lg"></div>
+    const modal = document.getElementById('staff-modal');
+    modal.innerHTML = `
+        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl h-5/6 flex flex-col p-4">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
+                <h2 class="text-2xl text-white font-bold">Staff Panel</h2>
+                <button onclick="closeModal('staff-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
             </div>
-            <div id="admin-player-details" class="w-2/3 bg-gray-900 p-4 rounded-lg overflow-y-auto">Select a player...</div>
+            <div class="flex flex-grow overflow-hidden gap-4 h-full">
+                <div class="w-1/3 flex flex-col h-full">
+                    <input type="text" id="player-search-input" placeholder="Search players..." class="w-full bg-gray-900 p-2 rounded mb-2">
+                    <div id="admin-player-list" class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-lg"></div>
+                </div>
+                <div id="admin-player-details" class="w-2/3 bg-gray-900 p-4 rounded-lg overflow-y-auto">Select a player...</div>
+            </div>
         </div>`;
-
-    const allPlayers = await apiRequest('/api/admin/all_players', { username: gameState.username });
-    const playerList = Object.entries(allPlayers).filter(([name]) => !name.startsWith("AI_"));
+    
+    const allPlayersData = await apiRequest('/api/admin/all_players', { username: gameState.username });
+    const playerList = Object.entries(allPlayersData).filter(([name]) => !allPlayersData[name].role.includes("ai"));
     const listEl = document.getElementById('admin-player-list');
 
     const displayPlayers = (players) => {
         listEl.innerHTML = '';
-        players.sort().forEach(([username]) => {
+        players.sort(([a],[b])=> a.localeCompare(b)).forEach(([username]) => {
             const div = document.createElement('div');
             div.className = 'p-2 hover:bg-gray-700 cursor-pointer rounded';
             div.textContent = username;
@@ -254,47 +305,50 @@ async function showPlayerDetails(username) {
     const data = await apiRequest(`/api/admin/player_details/${username}`, { username: gameState.username });
     if (!data.success) { detailsEl.innerHTML = data.message; return; }
     const p = data.player;
+    const canEditValues = gameState.playerData.role === 'admin';
     detailsEl.innerHTML = `
-        <h3 class="text-2xl font-bold">${p.username} (${p.is_online ? 'Online' : 'Offline'})</h3>
+        <h3 class="text-2xl font-bold">${p.username} (${p.is_online ? '<span class="text-green-400">Online</span>' : '<span class="text-red-400">Offline</span>'})</h3>
+        <p class="text-gray-400">Role: ${p.role}</p>
         <div class="grid grid-cols-2 gap-4 mt-4">
-            <div><label>Money</label><input id="edit-money" value="${p.money}" class="bg-gray-800 p-2 w-full"></div>
-            <div><label>Clicks</label><input id="edit-clicks" value="${p.clicks}" class="bg-gray-800 p-2 w-full"></div>
-            <button id="save-btn" class="col-span-2 bg-blue-600 p-2 rounded">Save Values</button>
+            <div><label class="text-sm">Money</label><input id="edit-money" value="${p.money}" ${!canEditValues && 'disabled'} class="bg-gray-800 p-2 w-full rounded"></div>
+            <div><label class="text-sm">Clicks</label><input id="edit-clicks" value="${p.clicks}" ${!canEditValues && 'disabled'} class="bg-gray-800 p-2 w-full rounded"></div>
+            ${canEditValues ? `<button id="save-btn" class="col-span-2 bg-blue-600 p-2 rounded">Save Values</button>` : ''}
         </div>
         <hr class="my-4 border-gray-600">
         <h4 class="text-xl">Actions</h4>
-        <div class="flex gap-2 mt-2">
+        <div class="flex gap-2 mt-2 flex-wrap">
             <button id="chat-ban-btn" class="bg-yellow-600 p-2 rounded">${p.is_chat_banned ? 'Unban Chat' : 'Ban Chat'}</button>
-            <input id="ban-hours" type="number" placeholder="Hours" class="bg-gray-800 p-2 w-24">
-            <button id="temp-ban-btn" class="bg-orange-600 p-2 rounded">Temp Ban</button>
-            <button id="perm-ban-btn" class="bg-red-700 p-2 rounded">Perm Ban</button>
-        </div>`;
+            <input id="ban-hours" type="number" placeholder="Hours" class="bg-gray-800 p-2 w-24 rounded">
+            <button id="temp-ban-btn" class="bg-orange-600 p-2 rounded">Temp Ban Server</button>
+            <button id="perm-ban-btn" class="bg-red-700 p-2 rounded">Perm Ban Server</button>
+        </div>
+        <div class="mt-4"><button class="bg-gray-600 p-2 rounded" onclick="alert('Content management is a future feature.')">Manage Content (Test)</button></div>`;
     
-    document.getElementById('save-btn').onclick = async () => {
-        const updates = {
-            money: document.getElementById('edit-money').value,
-            clicks: document.getElementById('edit-clicks').value,
+    if (canEditValues) {
+        document.getElementById('save-btn').onclick = async () => {
+            const updates = { money: document.getElementById('edit-money').value, clicks: document.getElementById('edit-clicks').value };
+            const res = await apiRequest('/api/admin/update_player', { username: gameState.username, target_user: username, updates });
+            alert(res.message); showPlayerDetails(username);
         };
-        await apiRequest('/api/admin/update_player', { username: gameState.username, target_user: username, updates });
-        showPlayerDetails(username); // Refresh
-    };
+    }
     document.getElementById('chat-ban-btn').onclick = async () => {
-        await apiRequest('/api/admin/set_ban', { username: gameState.username, target_user: username, ban_type: 'chat' });
-        showPlayerDetails(username);
+        const res = await apiRequest('/api/admin/set_ban', { username: gameState.username, target_user: username, ban_type: 'chat' });
+        alert(res.message); showPlayerDetails(username);
     };
     document.getElementById('temp-ban-btn').onclick = async () => {
         const hours = document.getElementById('ban-hours').value;
-        if (!hours) return alert('Enter hours');
-        await apiRequest('/api/admin/set_ban', { username: gameState.username, target_user: username, ban_type: 'server', duration_hours: hours });
-        showPlayerDetails(username);
+        if (!hours || hours <= 0) return alert('Enter a positive number of hours.');
+        const res = await apiRequest('/api/admin/set_ban', { username: gameState.username, target_user: username, ban_type: 'server', duration_hours: hours });
+        alert(res.message); showPlayerDetails(username);
     };
     document.getElementById('perm-ban-btn').onclick = async () => {
-        if (confirm('PERMANENTLY BAN THIS USER?')) {
-            await apiRequest('/api/admin/set_ban', { username: gameState.username, target_user: username, ban_type: 'server', duration_hours: null });
-            showPlayerDetails(username);
+        if (confirm(`Are you absolutely sure you want to PERMANENTLY ban ${username}? This cannot be undone.`)) {
+            const res = await apiRequest('/api/admin/set_ban', { username: gameState.username, target_user: username, ban_type: 'server', duration_hours: null });
+            alert(res.message); showPlayerDetails(username);
         }
     };
 }
+
 
 // --- Game Actions ---
 async function handleLogin() {
@@ -304,39 +358,53 @@ async function handleLogin() {
     if (response.success) {
         gameState.username = username;
         gameState.playerData = response.player_data;
-        loginScreen.classList.add('hidden');
-        gameContainer.classList.remove('hidden');
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('game-container').classList.remove('hidden');
         if (['admin', 'moderator', 'helpdesk'].includes(response.player_data.role)) {
             document.getElementById('staff-panel-button').classList.remove('hidden');
         }
         await initializeGameData();
         updateStats();
-        updateInventory();
         setupChatTabs();
         updateInterval = setInterval(updateLoop, 3000);
     } else {
         document.getElementById('login-error').textContent = response.message;
     }
 }
-
 async function handleOpenCase(caseName) {
+    const modal = document.getElementById('unboxing-modal');
+    modal.innerHTML = `<div class="text-white text-4xl">Opening...</div>`;
+    modal.classList.add('active');
     const result = await apiRequest('/api/open_case', { username: gameState.username, case_name: caseName });
     if (result.success) {
         gameState.playerData = result.player_data;
-        updateInventory();
-        alert(`You unboxed a ${result.item_won.name} worth $${result.item_won.value.toLocaleString()}!`);
+        renderInventory();
+        const item = result.item_won;
+        modal.innerHTML = `
+            <div class="bg-gray-800 border-4 border-cyan-400 rounded-lg p-8 text-center">
+                <h2 class="text-2xl mb-4">You unboxed...</h2>
+                <p class="text-3xl font-bold">${item.name}</p>
+                <p class="text-lg text-green-300">$${item.value.toLocaleString()}</p>
+                <button onclick="closeModal('unboxing-modal')" class="mt-6 bg-cyan-600 p-2 rounded w-full">Awesome!</button>
+            </div>`;
     } else {
         alert(result.message);
+        closeModal('unboxing-modal');
     }
 }
-
 async function handleSendChat() {
     const input = document.getElementById('chat-input');
     const message = input.value.trim();
     if (!message) return;
     input.value = '';
-    await apiRequest('/api/chat/send', { username: gameState.username, channel: gameState.activeChat, message });
-    updateLoop(); // Force immediate refresh
+    const body = { 
+        username: gameState.username, 
+        channel: gameState.activeChat.channel,
+        message: message,
+        receiver: gameState.activeChat.target
+    };
+    await apiRequest('/api/chat/send', body);
+    updateLoop();
 }
 
 // --- Main Loop & Init ---
@@ -350,11 +418,11 @@ async function updateLoop() {
         updateStats();
         renderChatMessages();
     } else {
-        alert("Session expired. Please log in again.");
+        clearInterval(updateInterval);
+        alert("Session expired or connection lost. Please log in again.");
         location.reload();
     }
 }
-
 async function initializeGameData() {
     const [cases, skins, rarities, ranks] = await Promise.all([
         apiRequest('/api/game_data/cases', {}, 'GET'),
@@ -362,25 +430,26 @@ async function initializeGameData() {
         apiRequest('/api/game_data/rarities', {}, 'GET'),
         apiRequest('/api/game_data/ranks', {}, 'GET')
     ]);
-    gameData = { cases, skins, rarities, ranks };
+    gameData = { cases, all_skins: skins, rarities, ranks };
 }
 
 // --- Event Listeners ---
 window.addEventListener('load', () => {
     document.getElementById('login-button').onclick = handleLogin;
     document.getElementById('signup-button').onclick = async () => {
-        const username = document.getElementById('username-input').value;
-        const password = document.getElementById('password-input').value;
-        const res = await apiRequest('/api/signup', {username, password});
+        const res = await apiRequest('/api/signup', {
+            username: document.getElementById('username-input').value,
+            password: document.getElementById('password-input').value
+        });
         document.getElementById('login-error').textContent = res.message;
     };
     document.getElementById('logout-button').onclick = () => location.reload();
     document.getElementById('click-button').onclick = async () => {
         const res = await apiRequest('/api/click', {username: gameState.username});
-        if(res.success) gameState.playerData = res.player_data;
-        updateStats();
+        if(res.success) { gameState.playerData = res.player_data; updateStats(); }
     };
     document.getElementById('send-chat-button').onclick = handleSendChat;
+    document.getElementById('chat-input').onkeyup = (e) => { if (e.key === 'Enter') handleSendChat(); };
     document.getElementById('staff-panel-button').onclick = () => openModal('staff-modal');
 });
 </script>
