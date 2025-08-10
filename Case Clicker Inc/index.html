@@ -16,22 +16,20 @@
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #1a202c; }
         ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
-        .skin-card { transition: all 0.2s ease-in-out; cursor: pointer; border: 2px solid transparent; }
+        .skin-card { transition: all 0.2s ease-in-out; }
         .skin-card.selected { border-color: #00ffff; transform: scale(1.05); box-shadow: 0 0 15px rgba(0, 255, 255, 0.5); }
-        .tier-button.active { background-color: #00ffff; color: #1a202c; }
     </style>
 </head>
 <body class="bg-gray-900 text-cyan-300 overflow-hidden h-screen">
 
-    <!-- Main Game Container -->
     <div id="game-container" class="hidden w-full h-screen p-4 flex flex-col md:flex-row gap-4">
+        
         <div class="flex-grow flex flex-col gap-4 w-full md:w-1/3">
             <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
                 <h2 id="username-display" class="text-2xl font-bold text-white">Player</h2>
-                <div class="grid grid-cols-3 gap-2 mt-2 text-lg items-center">
-                    <p>🎖️ Rank: <span id="rank-stat" class="font-mono text-yellow-400"></span></p>
+                <div class="grid grid-cols-2 gap-2 mt-2 text-lg">
                     <p>💰 Money: <span id="money-stat" class="font-mono text-green-400">0</span></p>
-                    <p>🖱️ Clicks: <span id="clicks-stat" class="font-mono text-cyan-400">0</span></p>
+                    <p>🖱️ Clicks: <span id="clicks-stat" class="font-mono text-yellow-400">0</span></p>
                 </div>
             </div>
             <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow flex flex-col items-center justify-center">
@@ -39,68 +37,83 @@
                 <div class="grid grid-cols-3 gap-2 mt-8 w-full">
                     <button onclick="openModal('shop-modal')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">Shop</button>
                     <button onclick="openModal('inventory-modal')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">Inventory</button>
-                    <button onclick="openModal('online-players-modal')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">Online</button>
+                    <button onclick="openModal('admin-modal')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">Admin</button>
                 </div>
             </div>
         </div>
-        <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow flex flex-col w-full md:w-2/3">
-            <h3 class="text-xl font-bold text-white mb-2 border-b border-gray-700 pb-2">Global Chat</h3>
-            <div id="chat-box" class="flex-grow overflow-y-auto mb-2 pr-2 space-y-2"></div>
-            <div class="flex gap-2">
-                <input type="text" id="chat-input" class="flex-grow bg-gray-700 text-white rounded-lg p-2" placeholder="Type a message...">
-                <button id="send-chat-button" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg">Send</button>
+
+        <div class="flex flex-col gap-4 w-full md:w-2/3 h-full">
+            <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow flex flex-col h-1/2">
+                <h3 class="text-xl font-bold text-white mb-2 border-b border-gray-700 pb-2">Players Online</h3>
+                <ul id="player-list" class="overflow-y-auto space-y-1 pr-2"></ul>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow flex flex-col h-1/2">
+                <h3 class="text-xl font-bold text-white mb-2 border-b border-gray-700 pb-2">Global Chat</h3>
+                <div id="chat-box" class="flex-grow overflow-y-auto mb-2 pr-2 space-y-2"></div>
+                <div class="flex gap-2">
+                    <input type="text" id="chat-input" class="flex-grow bg-gray-700 text-white rounded-lg p-2" placeholder="Type a message...">
+                    <button id="send-chat-button" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg">Send</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Login Screen -->
     <div id="login-screen" class="w-full h-screen flex items-center justify-center">
         <div class="bg-gray-800 p-8 rounded-lg shadow-2xl text-center w-full max-w-sm">
             <h1 class="text-4xl font-bold text-white mb-4">Case Clicker Online</h1>
-            <div class="space-y-4">
-                <input type="text" id="username-input" class="w-full bg-gray-700 text-white rounded-lg p-3 text-center text-lg" placeholder="Enter Username" autocomplete="username">
-                <input type="password" id="password-input" class="w-full bg-gray-700 text-white rounded-lg p-3 text-center text-lg" placeholder="Enter Password" autocomplete="current-password">
-            </div>
-            <div class="grid grid-cols-2 gap-4 mt-4">
-                <button id="login-button" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-lg text-lg">Login</button>
-                <button id="signup-button" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg text-lg">Sign Up</button>
-            </div>
-            <button onclick="openModal('admin-modal')" class="w-full mt-4 bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 rounded-lg">Admin Login</button>
+            <input type="text" id="username-input" class="w-full bg-gray-700 text-white rounded-lg p-3 text-center text-lg" placeholder="Enter Username">
+            <button id="login-button" class="w-full mt-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-lg text-lg">Login</button>
             <p id="login-error" class="text-red-400 mt-4 h-6"></p>
         </div>
     </div>
 
-    <!-- Shop Modal -->
-    <div id="shop-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4">
-        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl h-full flex flex-col p-4">
-            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-4">
-                <h2 class="text-3xl text-white font-bold">Case Shop</h2>
-                <div class="text-2xl text-green-400 font-mono">💰 <span id="shop-money-stat">0</span></div>
-                <button onclick="closeModal('shop-modal')" class="text-gray-400 hover:text-white text-3xl">&times;</button>
-            </div>
-            <div id="shop-tier-buttons" class="flex flex-wrap gap-2 mb-4 overflow-x-auto pb-2"></div>
-            <div id="shop-case-list" class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-2"></div>
-        </div>
-    </div>
-
-    <!-- Inventory Modal -->
-    <div id="inventory-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4">
-        <!-- ... same as before ... -->
-    </div>
-
-    <!-- Online Players Modal -->
-    <div id="online-players-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4">
-        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-md h-2/3 flex flex-col p-4">
+    <div id="shop-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center">
+        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-4xl h-5/6 flex flex-col p-4">
             <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
-                <h2 class="text-2xl text-white font-bold">Online Players</h2>
-                <button onclick="closeModal('online-players-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                <h2 class="text-2xl text-white font-bold">Case Shop</h2>
+                <button onclick="closeModal('shop-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
             </div>
-            <div id="online-player-list" class="flex-grow overflow-y-auto"></div>
+            <div id="shop-case-list" class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-2"></div>
         </div>
     </div>
 
-    <!-- Admin Modal -->
-    <div id="admin-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4">
+    <div id="inventory-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center">
+        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-6xl h-5/6 flex flex-col p-4">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
+                <h2 class="text-2xl text-white font-bold">Inventory</h2>
+                <button onclick="closeModal('inventory-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div class="flex flex-grow overflow-hidden gap-4">
+                <div class="w-1/3 flex flex-col">
+                    <h3 class="text-xl font-bold text-white mb-2">My Cases</h3>
+                    <div id="inventory-case-list" class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-lg"></div>
+                </div>
+                <div class="w-2/3 flex flex-col">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-xl font-bold text-white">My Skins (<span id="skin-count">0</span>)</h3>
+                        <div id="sell-button-container" class="hidden">
+                            <button id="sell-selected-btn" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-lg">Sell Selected (0)</button>
+                        </div>
+                    </div>
+                    <div id="inventory-skin-list" class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-lg grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="unboxing-modal" class="modal fixed inset-0 bg-black bg-opacity-85 items-center justify-center z-50">
+        <div id="unboxing-result" class="bg-gray-800 border-4 rounded-lg shadow-2xl w-full max-w-md text-center p-8 transform transition-all duration-500 scale-95 opacity-0">
+            <h2 class="text-2xl font-bold text-white mb-4">You unboxed...</h2>
+            <div id="unboxed-item-card" class="p-4 rounded-lg">
+                <p id="unboxed-item-name" class="text-3xl font-bold"></p>
+                <p class="text-lg text-gray-400">Value: <span id="unboxed-item-value" class="font-mono text-green-300"></span></p>
+            </div>
+            <button onclick="closeModal('unboxing-modal')" class="mt-6 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-lg">Awesome!</button>
+        </div>
+    </div>
+
+
+    <div id="admin-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center">
         <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-4xl h-5/6 flex flex-col p-4">
             <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
                 <h2 class="text-2xl text-white font-bold">Admin Panel</h2>
@@ -110,277 +123,470 @@
                 <input type="password" id="admin-password-input" class="w-full bg-gray-700 text-white rounded-lg p-3 text-center" placeholder="Enter Admin Password">
                 <button id="admin-submit-password" class="w-full mt-4 bg-cyan-600 text-white font-bold py-3 rounded-lg">Authenticate</button>
             </div>
-            <div id="admin-data-view" class="hidden flex-grow overflow-hidden flex-col">
-                <h3 class="text-xl font-bold text-white">Online Players (<span id="admin-online-count">0</span>)</h3>
-                <div id="admin-player-list" class="bg-gray-900 p-2 rounded-lg overflow-auto h-1/3 my-2"></div>
-                <h3 class="text-xl font-bold text-white mt-4">Moderator Actions</h3>
-                <div class="grid grid-cols-2 gap-4 p-2 bg-gray-900 rounded-lg">
-                    <input id="admin-target-user" class="bg-gray-700 p-2 rounded col-span-2" placeholder="Target Username">
+            <div id="admin-data-view" class="hidden flex-grow overflow-hidden flex flex-col">
+                <h3 class="text-xl font-bold text-white">Live Server Data</h3>
+                <pre id="admin-data-pre" class="bg-gray-900 text-xs p-4 rounded-lg overflow-auto h-1/2 my-2 flex-grow"></pre>
+                <h3 class="text-xl font-bold text-white mt-4">Admin Actions</h3>
+                <div class="flex gap-4 items-center mt-2">
+                    <input id="admin-target-user" class="bg-gray-700 p-2 rounded" placeholder="Target Username">
                     <button id="admin-kick-button" class="bg-red-600 p-2 rounded">Kick Player</button>
-                    <div class="flex gap-2">
-                        <input id="admin-money-amount" type="number" class="bg-gray-700 p-2 rounded w-full" placeholder="Amount">
-                        <button id="admin-give-money-button" class="bg-green-600 p-2 rounded">Give Money</button>
-                    </div>
-                </div>
-                <div id="main-admin-actions" class="hidden mt-4">
-                    <h3 class="text-xl font-bold text-white">Admin-Only Actions</h3>
-                    <div class="flex gap-4 p-2 bg-gray-900 rounded-lg">
-                        <button id="admin-promote-button" class="bg-blue-600 p-2 rounded">Promote to Moderator</button>
-                        <button id="admin-demote-button" class="bg-yellow-600 p-2 rounded">Demote to Player</button>
-                    </div>
+                    <input id="admin-money-amount" type="number" class="bg-gray-700 p-2 rounded w-32" placeholder="Amount">
+                    <button id="admin-give-money-button" class="bg-green-600 p-2 rounded">Give Money</button>
                 </div>
             </div>
         </div>
     </div>
-    
+
 <script>
 // --- Client-Side Game Logic ---
 const API_URL = window.location.origin;
 
+// --- State Management ---
 let gameState = {
     username: null,
-    password: null,
-    playerData: { clicks: 0, money: 0, skins: [], cases: {}, role: 'player' },
+    playerData: { clicks: 0, money: 0, skins: [], cases: {} },
+    onlinePlayers: [],
     lastGlobalChatId: '0',
     adminPassword: null,
     selectedSkinIds: new Set(),
-    onlinePlayers: [],
 };
-let gameData = {};
-let gameLoopInterval = null;
+let gameData = {
+    cases: {},
+    skins: {},
+    rarities: {}
+};
+let updateInterval;
 
 // --- DOM Elements ---
-const DOMElements = {
-    loginScreen: document.getElementById('login-screen'),
-    gameContainer: document.getElementById('game-container'),
-    usernameInput: document.getElementById('username-input'),
-    passwordInput: document.getElementById('password-input'),
-    loginButton: document.getElementById('login-button'),
-    signupButton: document.getElementById('signup-button'),
-    loginError: document.getElementById('login-error'),
-    usernameDisplay: document.getElementById('username-display'),
-    moneyStat: document.getElementById('money-stat'),
-    clicksStat: document.getElementById('clicks-stat'),
-    rankStat: document.getElementById('rank-stat'),
-    clickButton: document.getElementById('click-button'),
-    chatBox: document.getElementById('chat-box'),
-    chatInput: document.getElementById('chat-input'),
-    sendChatButton: document.getElementById('send-chat-button'),
-    shopModal: document.getElementById('shop-modal'),
-    shopCaseList: document.getElementById('shop-case-list'),
-    shopTierButtons: document.getElementById('shop-tier-buttons'),
-    shopMoneyStat: document.getElementById('shop-money-stat'),
-    inventoryModal: document.getElementById('inventory-modal'),
-    inventoryCaseList: document.getElementById('inventory-case-list'),
-    inventorySkinList: document.getElementById('inventory-skin-list'),
-    skinCount: document.getElementById('skin-count'),
-    sellButtonContainer: document.getElementById('sell-button-container'),
-    sellSelectedBtn: document.getElementById('sell-selected-btn'),
-    adminModal: document.getElementById('admin-modal'),
-    adminLoginView: document.getElementById('admin-login-view'),
-    adminPasswordInput: document.getElementById('admin-password-input'),
-    adminSubmitPassword: document.getElementById('admin-submit-password'),
-    adminDataView: document.getElementById('admin-data-view'),
-    adminPlayerList: document.getElementById('admin-player-list'),
-    adminOnlineCount: document.getElementById('admin-online-count'),
-    adminTargetUser: document.getElementById('admin-target-user'),
-    adminKickButton: document.getElementById('admin-kick-button'),
-    adminMoneyAmount: document.getElementById('admin-money-amount'),
-    adminGiveMoneyButton: document.getElementById('admin-give-money-button'),
-    mainAdminActions: document.getElementById('main-admin-actions'),
-    adminPromoteButton: document.getElementById('admin-promote-button'),
-    adminDemoteButton: document.getElementById('admin-demote-button'),
-    onlinePlayersModal: document.getElementById('online-players-modal'),
-    onlinePlayerList: document.getElementById('online-player-list'),
-};
+const loginScreen = document.getElementById('login-screen');
+const gameContainer = document.getElementById('game-container');
+const usernameInput = document.getElementById('username-input');
+const loginButton = document.getElementById('login-button');
+const loginError = document.getElementById('login-error');
+const usernameDisplay = document.getElementById('username-display');
+const moneyStat = document.getElementById('money-stat');
+const clicksStat = document.getElementById('clicks-stat');
+const clickButton = document.getElementById('click-button');
+const playerList = document.getElementById('player-list');
+const chatBox = document.getElementById('chat-box');
+const chatInput = document.getElementById('chat-input');
+const sendChatButton = document.getElementById('send-chat-button');
+const shopCaseList = document.getElementById('shop-case-list');
+const inventoryCaseList = document.getElementById('inventory-case-list');
+const inventorySkinList = document.getElementById('inventory-skin-list');
+const skinCount = document.getElementById('skin-count');
+const sellButtonContainer = document.getElementById('sell-button-container');
+const sellSelectedBtn = document.getElementById('sell-selected-btn');
+const adminLoginView = document.getElementById('admin-login-view');
+const adminPasswordInput = document.getElementById('admin-password-input');
+const adminSubmitPassword = document.getElementById('admin-submit-password');
+const adminDataView = document.getElementById('admin-data-view');
+const adminDataPre = document.getElementById('admin-data-pre');
+const adminTargetUser = document.getElementById('admin-target-user');
+const adminKickButton = document.getElementById('admin-kick-button');
+const adminMoneyAmount = document.getElementById('admin-money-amount');
+const adminGiveMoneyButton = document.getElementById('admin-give-money-button');
 
 // --- Helper Functions ---
 function formatNumber(num) {
-    if (num < 10000) return num.toLocaleString();
-    const suffixes = ["", "k", "M", "B", "T", "q", "Q"];
-    const i = Math.floor(Math.log10(num) / 3);
-    const shortNum = (num / Math.pow(1000, i)).toFixed(2);
-    return shortNum + suffixes[i];
+    if (num === null || num === undefined) return '0';
+    return num.toLocaleString('en-US');
 }
 
-async function apiRequest(endpoint, body) {
+function getRarityColor(skinName) {
+    const rarityName = gameData.skins[skinName];
+    if (rarityName && gameData.rarities[rarityName]) {
+        return gameData.rarities[rarityName].color;
+    }
+    return 'text-gray-400';
+}
+
+function getRarityStyle(skinName) {
+    const rarityName = gameData.skins[skinName];
+    if (rarityName && gameData.rarities[rarityName]) {
+        const color = gameData.rarities[rarityName].color;
+        // Simple mapping from color names to tailwind classes
+        const colorMap = {
+            "gray": "border-gray-400 text-gray-300",
+            "light blue": "border-cyan-400 text-cyan-300",
+            "blue": "border-blue-500 text-blue-400",
+            "purple": "border-purple-500 text-purple-400",
+            "orange": "border-orange-500 text-orange-400",
+            "red": "border-red-500 text-red-400",
+        };
+        return colorMap[color] || 'border-gray-400';
+    }
+    return 'border-gray-400';
+}
+
+
+// --- API Helper ---
+async function apiRequest(endpoint, body = {}, method = 'POST') {
     try {
-        const response = await fetch(`${API_URL}${endpoint}`, {
-            method: 'POST',
+        const options = {
+            method: method,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
+        };
+        if (method !== 'GET') {
+            options.body = JSON.stringify(body);
+        }
+        const response = await fetch(`${API_URL}${endpoint}`, options);
         const data = await response.json();
-        if (!response.ok) throw new Error(data.message || `HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(data.message || `HTTP error! status: ${response.status}`);
+        }
         return data;
     } catch (error) {
         console.error(`API request to ${endpoint} failed:`, error);
-        DOMElements.loginError.textContent = error.message;
+        // Display error to user if relevant (e.g., login error)
+        if (endpoint.includes('login')) {
+            loginError.textContent = error.message;
+        }
         return { success: false, message: error.message };
     }
 }
 
-// --- Local Storage ---
-function saveCredentials() {
-    try {
-        const credentials = {
-            username: DOMElements.usernameInput.value,
-            password: DOMElements.passwordInput.value,
-            adminPassword: gameState.adminPassword
-        };
-        localStorage.setItem('caseClickerCreds', JSON.stringify(credentials));
-    } catch (e) { console.error("Failed to save credentials:", e); }
+// --- Modals ---
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('active');
+}
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
 }
 
-function loadCredentials() {
-    try {
-        const savedCreds = localStorage.getItem('caseClickerCreds');
-        if (savedCreds) {
-            const parsed = JSON.parse(savedCreds);
-            DOMElements.usernameInput.value = parsed.username || '';
-            DOMElements.passwordInput.value = parsed.password || '';
-            gameState.adminPassword = parsed.adminPassword || null;
+// --- UI Update Functions ---
+function updateStats() {
+    moneyStat.textContent = `$${formatNumber(Math.floor(gameState.playerData.money))}`;
+    clicksStat.textContent = formatNumber(gameState.playerData.clicks);
+}
+
+function updatePlayerList() {
+    playerList.innerHTML = '';
+    gameState.onlinePlayers.forEach(player => {
+        const li = document.createElement('li');
+        li.textContent = player;
+        li.className = 'text-white p-1 rounded';
+        if (player === gameState.username) {
+            li.classList.add('font-bold', 'text-cyan-300');
         }
-    } catch (e) { console.error("Failed to load credentials:", e); }
+        playerList.appendChild(li);
+    });
 }
 
-// --- UI Rendering ---
-function updateUI() {
-    if (!gameState.playerData) return;
-    const { money, clicks, rank } = gameState.playerData;
-    DOMElements.moneyStat.textContent = formatNumber(money || 0);
-    DOMElements.shopMoneyStat.textContent = formatNumber(money || 0);
-    DOMElements.clicksStat.textContent = formatNumber(clicks || 0);
-    DOMElements.rankStat.textContent = rank ? rank.name : "N/A";
-    DOMElements.usernameDisplay.textContent = gameState.username;
-    
-    // Only show admin actions if user has the right role
-    const userRole = gameState.playerData.role;
-    DOMElements.mainAdminActions.classList.toggle('hidden', userRole !== 'admin');
+function updateChat(messages) {
+    if (messages.length === 0) return;
+    const shouldScroll = chatBox.scrollTop + chatBox.clientHeight >= chatBox.scrollHeight - 20;
 
-    renderInventorySkins();
-    renderInventoryCases();
+    messages.forEach(msg => {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'chat-message';
+        if (msg.is_server_msg) {
+            msgDiv.classList.add('server-message');
+            msgDiv.textContent = msg.msg;
+        } else {
+            msgDiv.classList.add('player-message');
+            const senderSpan = document.createElement('span');
+            senderSpan.className = 'sender';
+            senderSpan.textContent = `${msg.sender}: `;
+            if (msg.sender === gameState.username) senderSpan.style.color = '#67e8f9'; // Highlight self
+            
+            const msgSpan = document.createElement('span');
+            msgSpan.textContent = msg.msg;
+
+            msgDiv.appendChild(senderSpan);
+            msgDiv.appendChild(msgSpan);
+        }
+        chatBox.appendChild(msgDiv);
+        gameState.lastGlobalChatId = msg.id;
+    });
+
+    if (shouldScroll) {
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+}
+
+function renderShop() {
+    shopCaseList.innerHTML = '';
+    Object.entries(gameData.cases).sort(([,a],[,b]) => a.price - b.price).forEach(([name, caseInfo]) => {
+        const caseDiv = document.createElement('div');
+        caseDiv.className = 'bg-gray-700 p-4 rounded-lg flex flex-col justify-between';
+        caseDiv.innerHTML = `
+            <div>
+                <h4 class="text-lg font-bold text-white">${name}</h4>
+                <p class="text-green-400 font-mono">$${formatNumber(caseInfo.price)}</p>
+            </div>
+            <div class="flex gap-2 mt-4">
+                 <input type="number" value="1" min="1" max="100" class="w-16 bg-gray-800 text-white p-1 rounded text-center" id="buy-qty-${name.replace(/\s/g, '')}">
+                 <button class="flex-grow bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-3 rounded-lg">Buy</button>
+            </div>
+        `;
+        caseDiv.querySelector('button').addEventListener('click', async () => {
+            const quantity = document.getElementById(`buy-qty-${name.replace(/\s/g, '')}`).value;
+            const result = await apiRequest('/api/buy_case', { username: gameState.username, case_name: name, quantity: quantity });
+            if (result.success) {
+                gameState.playerData = result.player_data;
+                updateStats();
+                updateInventory();
+            } else {
+                alert(result.message || "Failed to buy case.");
+            }
+        });
+        shopCaseList.appendChild(caseDiv);
+    });
+}
+
+function updateInventory() {
+    // Update cases
+    inventoryCaseList.innerHTML = '';
+    const ownedCases = gameState.playerData.cases || {};
+    Object.entries(ownedCases).sort(([a],[b])=>a.localeCompare(b)).forEach(([name, count]) => {
+        if (count > 0) {
+            const caseDiv = document.createElement('div');
+            caseDiv.className = 'bg-gray-700 p-3 rounded-lg mb-2 flex justify-between items-center';
+            caseDiv.innerHTML = `
+                <div>
+                    <h5 class="text-white font-bold">${name}</h5>
+                    <p class="text-gray-400">Owned: ${count}</p>
+                </div>
+                <button class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg">Open</button>
+            `;
+            caseDiv.querySelector('button').addEventListener('click', () => handleOpenCase(name));
+            inventoryCaseList.appendChild(caseDiv);
+        }
+    });
+
+    // Update skins
+    inventorySkinList.innerHTML = '';
+    const sortedSkins = (gameState.playerData.skins || []).sort((a,b) => b.value - a.value);
+    skinCount.textContent = sortedSkins.length;
+
+    sortedSkins.forEach(skin => {
+        const skinDiv = document.createElement('div');
+        skinDiv.className = `skin-card bg-gray-800 p-2 rounded-lg border-2 border-transparent cursor-pointer ${getRarityStyle(skin.name)}`;
+        skinDiv.dataset.skinId = skin.id;
+        skinDiv.innerHTML = `
+            <p class="font-bold text-sm truncate">${skin.name}</p>
+            <p class="text-xs text-green-400 font-mono">$${formatNumber(skin.value)}</p>
+        `;
+        if (gameState.selectedSkinIds.has(skin.id)) {
+            skinDiv.classList.add('selected');
+        }
+
+        skinDiv.addEventListener('click', () => {
+            if (gameState.selectedSkinIds.has(skin.id)) {
+                gameState.selectedSkinIds.delete(skin.id);
+                skinDiv.classList.remove('selected');
+            } else {
+                gameState.selectedSkinIds.add(skin.id);
+                skinDiv.classList.add('selected');
+            }
+            updateSellButton();
+        });
+        inventorySkinList.appendChild(skinDiv);
+    });
     updateSellButton();
 }
 
-// ... other render functions (inventory, chat) are complex and mostly unchanged ...
-
-function setupShopTiers() {
-    DOMElements.shopTierButtons.innerHTML = '';
-    for (let i = 1; i <= 20; i++) {
-        const button = document.createElement('button');
-        button.className = 'tier-button bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg';
-        button.textContent = `T${i}`;
-        button.onclick = () => renderShopCases(i);
-        DOMElements.shopTierButtons.appendChild(button);
+function updateSellButton() {
+    const selectedCount = gameState.selectedSkinIds.size;
+    if (selectedCount > 0) {
+        let totalValue = 0;
+        const skins = gameState.playerData.skins || [];
+        for (const id of gameState.selectedSkinIds) {
+            const skin = skins.find(s => s.id === id);
+            if(skin) totalValue += skin.value;
+        }
+        sellSelectedBtn.textContent = `Sell Selected (${selectedCount}) for $${formatNumber(Math.floor(totalValue))}`;
+        sellButtonContainer.classList.remove('hidden');
+    } else {
+        sellButtonContainer.classList.add('hidden');
     }
 }
 
-function renderShopCases(tier) {
-    document.querySelectorAll('.tier-button').forEach((btn, index) => {
-        btn.classList.toggle('active', index + 1 === tier);
-    });
-    DOMElements.shopCaseList.innerHTML = '';
-    const filteredCases = Object.entries(gameData.cases).filter(([, data]) => data.tier === tier);
-    for (const [caseName, caseInfo] of filteredCases) {
-        const div = document.createElement('div');
-        div.className = 'bg-gray-700 p-4 rounded-lg flex flex-col items-center';
-        div.innerHTML = `
-            <h4 class="text-lg font-bold text-white text-center">${caseName}</h4>
-            <p class="text-green-400 font-mono my-2">$${parseFloat(caseInfo.price).toLocaleString()}</p>
-            <button class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg mt-auto" onclick="buyCase('${caseName}')">Buy</button>
-        `;
-        DOMElements.shopCaseList.appendChild(div);
-    }
-}
 
-function renderOnlinePlayers(players) {
-    DOMElements.onlinePlayerList.innerHTML = '';
-    players.forEach(p => {
-        if (p.display_name === gameState.username) return; // Don't show self
-        const div = document.createElement('div');
-        div.className = 'bg-gray-700 p-3 rounded-lg flex justify-between items-center mb-2';
-        div.innerHTML = `<span class="text-white font-bold">${p.display_name}</span>
-                         <div>
-                            <button class="bg-cyan-600 text-white py-1 px-3 rounded text-sm">Chat</button>
-                         </div>`;
-        DOMElements.onlinePlayerList.appendChild(div);
-    });
-}
-
-// --- Game Logic ---
+// --- Game Actions ---
 async function handleLogin() {
-    const user = DOMElements.usernameInput.value.trim();
-    const pass = DOMElements.passwordInput.value;
-    if (!user || !pass) {
-        DOMElements.loginError.textContent = 'Username and password are required.';
+    const user = usernameInput.value.trim();
+    if (!user) {
+        loginError.textContent = 'Username cannot be empty.';
         return;
     }
-    DOMElements.loginButton.disabled = true;
-    DOMElements.signupButton.disabled = true;
-    DOMElements.loginError.textContent = '';
+    loginError.textContent = '';
+    loginButton.disabled = true;
+    loginButton.textContent = 'Logging in...';
 
-    const result = await apiRequest('/api/login', { username: user, password: pass });
+    const response = await apiRequest('/api/login', { username: user });
+
+    loginButton.disabled = false;
+    loginButton.textContent = 'Login';
+
+    if (response.success) {
+        gameState.username = user;
+        gameState.playerData = response.player_data;
+        loginScreen.classList.add('hidden');
+        gameContainer.classList.remove('hidden');
+        usernameDisplay.textContent = user;
+        
+        await initializeGameData();
+        
+        updateStats();
+        updateInventory();
+        renderShop();
+
+        updateLoop(); // First immediate update
+        updateInterval = setInterval(updateLoop, 3000); // Then update every 3 seconds
+    } else {
+        loginError.textContent = response.message || 'Login failed.';
+    }
+}
+
+async function handleSendChat() {
+    const message = chatInput.value.trim();
+    if (!message) return;
+    chatInput.value = '';
+    await apiRequest('/api/chat/global', { username: gameState.username, message: message });
+}
+
+async function handleOpenCase(caseName) {
+    const result = await apiRequest('/api/open_case', { username: gameState.username, case_name: caseName });
+    if (result.success) {
+        gameState.playerData = result.player_data;
+        updateStats();
+        updateInventory();
+        
+        // Show unboxing result
+        const item = result.item_won;
+        const rarityStyle = getRarityStyle(item.name);
+        document.getElementById('unboxed-item-name').textContent = item.name;
+        document.getElementById('unboxed-item-name').className = `text-3xl font-bold ${rarityStyle.split(' ')[1]}`;
+        document.getElementById('unboxed-item-value').textContent = `$${formatNumber(item.value)}`;
+        document.getElementById('unboxed-item-card').className = `p-4 rounded-lg border-2 ${rarityStyle.split(' ')[0]}`;
+        
+        openModal('unboxing-modal');
+        // Trigger animation
+        setTimeout(() => {
+           document.getElementById('unboxing-result').classList.remove('scale-95', 'opacity-0');
+           document.getElementById('unboxing-result').classList.add('scale-100', 'opacity-100');
+        }, 50);
+
+    } else {
+        alert(result.message || "Failed to open case.");
+    }
+}
+
+async function handleSellSkins() {
+    if (gameState.selectedSkinIds.size === 0) return;
+    const ids = Array.from(gameState.selectedSkinIds);
+    const result = await apiRequest('/api/sell_skins', {username: gameState.username, skin_ids: ids});
 
     if (result.success) {
-        gameState.username = result.username;
         gameState.playerData = result.player_data;
-        DOMElements.loginScreen.classList.add('hidden');
-        DOMElements.gameContainer.classList.remove('hidden');
-        saveCredentials(); // Save on successful login
-        await loadStaticData();
-        updateUI();
-        startGameLoop();
+        gameState.selectedSkinIds.clear();
+        updateStats();
+        updateInventory();
     } else {
-        DOMElements.loginError.textContent = result.message;
+        alert("Failed to sell skins.");
     }
-    DOMElements.loginButton.disabled = false;
-    DOMElements.signupButton.disabled = false;
 }
 
-// ... other handlers (signup, click, buy, sell, etc.) ...
 
-// --- Game Initialization & Loop ---
-function startGameLoop() {
-    if (gameLoopInterval) clearInterval(gameLoopInterval);
-    gameLoopInterval = setInterval(updateGameState, 3000);
-}
-
-async function updateGameState() {
+// --- Main Game Loop ---
+async function updateLoop() {
     if (!gameState.username) return;
-    const result = await apiRequest('/api/game_state', { username: gameState.username });
-    if (result.success) {
-        gameState.playerData = result.player_data;
-        gameState.onlinePlayers = result.online_players;
-        updateUI();
-        renderOnlinePlayers(result.online_players);
+
+    const response = await apiRequest('/api/game_state', {
+        username: gameState.username,
+        last_chat_id: gameState.lastGlobalChatId
+    });
+
+    if (response.success) {
+        gameState.playerData = response.player_data;
+        gameState.onlinePlayers = response.online_players;
+        
+        updateStats();
+        updatePlayerList();
+        updateChat(response.new_global_messages);
     } else {
-        // Handle logout on error
-        clearInterval(gameLoopInterval);
-        localStorage.removeItem('caseClickerCreds');
-        location.reload();
+        // Handle potential disconnection or error
+        console.error("Game state update failed. User might be disconnected.");
+        clearInterval(updateInterval);
+        alert("Connection to server lost. Please refresh the page.");
     }
 }
 
-async function loadStaticData() {
-    try {
-        gameData = await fetch(`${API_URL}/api/game_data/all`).then(res => res.json());
-        setupShopTiers();
-        renderShopCases(1); // Load Tier 1 by default
-    } catch (e) {
-        console.error("Failed to load static game data:", e);
-        DOMElements.loginError.textContent = "Could not connect to game servers.";
+async function initializeGameData() {
+    const [cases, skins, rarities] = await Promise.all([
+        fetch(`${API_URL}/api/game_data/cases`).then(res => res.json()),
+        fetch(`${API_URL}/api/game_data/skins`).then(res => res.json()),
+        fetch(`${API_URL}/api/game_data/rarities`).then(res => res.json())
+    ]);
+    gameData.cases = cases;
+    gameData.skins = skins;
+    gameData.rarities = rarities;
+}
+
+// --- Admin Panel Logic ---
+async function handleAdminLogin() {
+    const password = adminPasswordInput.value;
+    const response = await apiRequest('/api/admin/data', { password });
+    if (response.success) {
+        gameState.adminPassword = password;
+        adminLoginView.classList.add('hidden');
+        adminDataView.classList.remove('hidden');
+        adminDataPre.textContent = JSON.stringify(response.all_data, null, 2);
+    } else {
+        alert('Incorrect password.');
     }
 }
 
-function init() {
-    loadCredentials();
-    DOMElements.loginButton.addEventListener('click', handleLogin);
-    // ... all other event listeners
+async function handleAdminAction(action, extraData = {}) {
+    const target_user = adminTargetUser.value.trim();
+    if (!target_user) {
+        alert('Target username is required.');
+        return;
+    }
+    const response = await apiRequest('/api/admin/action', {
+        password: gameState.adminPassword,
+        action,
+        target_user,
+        ...extraData
+    });
+    alert(response.message || 'Action failed.');
+    if(response.success){
+        const newData = await apiRequest('/api/admin/data', { password: gameState.adminPassword });
+        adminDataPre.textContent = JSON.stringify(newData.all_data, null, 2);
+    }
 }
 
-init();
+// --- Event Listeners ---
+window.addEventListener('load', () => {
+    loginButton.addEventListener('click', handleLogin);
+    usernameInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleLogin(); });
 
+    clickButton.addEventListener('click', async () => {
+        const result = await apiRequest('/api/click', { username: gameState.username });
+        if (result.success) {
+            gameState.playerData = result.player_data;
+            updateStats();
+        }
+    });
+
+    sendChatButton.addEventListener('click', handleSendChat);
+    chatInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleSendChat(); });
+
+    sellSelectedBtn.addEventListener('click', handleSellSkins);
+    
+    adminSubmitPassword.addEventListener('click', handleAdminLogin);
+    adminKickButton.addEventListener('click', () => handleAdminAction('kick'));
+    adminGiveMoneyButton.addEventListener('click', () => {
+        const amount = adminMoneyAmount.value;
+        if (!amount || isNaN(parseInt(amount))) {
+            alert('Valid amount is required.');
+            return;
+        }
+        handleAdminAction('give_money', { amount });
+    });
+});
 </script>
 </body>
 </html>
