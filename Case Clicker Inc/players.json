@@ -12,37 +12,9 @@
         "monthly_clicks": 0,
         "monthly_cases_opened": 0,
         "is_chat_banned": false,
-        "rank": 17
-    },
-    "moderator": {
-        "password_hash": "ad67a5b18a8b8f359de62a033660144f",
-        "role": "moderator",
-        "clicks": 500000,
-        "money": 5000000,
-        "skins": [],
-        "cases": {},
-        "time_played": 0,
-        "money_spent": 0,
-        "cases_opened": 0,
-        "monthly_clicks": 0,
-        "monthly_cases_opened": 0,
-        "is_chat_banned": false,
-        "rank": 14
-    },
-    "helpdesk": {
-        "password_hash": "d764436535697c44937c685f81465224",
-        "role": "helpdesk",
-        "clicks": 1000,
-        "money": 10000,
-        "skins": [],
-        "cases": {},
-        "time_played": 0,
-        "money_spent": 0,
-        "cases_opened": 0,
-        "monthly_clicks": 0,
-        "monthly_cases_opened": 0,
-        "is_chat_banned": false,
-        "rank": 6
+        "rank": 17,
+        "has_changed_username": false,
+        "has_changed_password": false
     },
     "player1": {
         "password_hash": "5d41402abc4b2a76b9719d911017c592",
@@ -57,21 +29,8 @@
         "monthly_clicks": 0,
         "monthly_cases_opened": 0,
         "is_chat_banned": false,
-        "rank": 1
-    },
-    "player2": {
-        "password_hash": "28c8edde3d61a0411511d3b1866f0636",
-        "role": "player",
-        "clicks": 100,
-        "money": 500,
-        "skins": [],
-        "cases": {},
-        "time_played": 0,
-        "money_spent": 0,
-        "cases_opened": 0,
-        "monthly_clicks": 0,
-        "monthly_cases_opened": 0,
-        "is_chat_banned": false,
-        "rank": 1
+        "rank": 1,
+        "has_changed_username": false,
+        "has_changed_password": false
     }
 }
