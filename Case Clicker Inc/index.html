@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Case Clicker Online</title>
+    <title>Case Clicker Inc.</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: 'Arial', sans-serif; }
@@ -46,17 +46,13 @@
                     <button onclick="openModal('shop-modal')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">Shop</button>
                     <button onclick="openModal('inventory-modal')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">Inventory</button>
                     <button onclick="openModal('leaderboard-modal')" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">Leaders</button>
-                    <button id="staff-panel-button" onclick="openModal('staff-modal')" class="hidden bg-purple-700 hover:bg-purple-600 text-white font-bold py-3 rounded-lg">Staff</button>
+                    <button id="staff-panel-button" class="hidden bg-purple-700 hover:bg-purple-600 text-white font-bold py-3 rounded-lg">Staff</button>
                 </div>
             </div>
         </div>
 
         <!-- Right Panel -->
         <div class="flex flex-col gap-4 w-full md:w-2/3 h-full">
-            <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow flex flex-col h-1/2">
-                <h3 class="text-xl font-bold text-white mb-2 border-b border-gray-700 pb-2">Players Online</h3>
-                <ul id="player-list" class="overflow-y-auto space-y-1 pr-2"></ul>
-            </div>
             <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-grow flex flex-col h-1/2">
                 <h3 class="text-xl font-bold text-white mb-2 border-b border-gray-700 pb-2">Global Chat</h3>
                 <div id="chat-box" class="flex-grow overflow-y-auto mb-2 pr-2 space-y-2"></div>
@@ -71,7 +67,7 @@
     <!-- Login Screen -->
     <div id="login-screen" class="w-full h-screen flex items-center justify-center">
         <div class="bg-gray-800 p-8 rounded-lg shadow-2xl text-center w-full max-w-sm">
-            <h1 class="text-4xl font-bold text-white mb-6">Case Clicker Online</h1>
+            <h1 class="text-4xl font-bold text-white mb-6">Case Clicker Inc.</h1>
             <div class="space-y-4">
                 <input type="text" id="username-input" class="w-full bg-gray-700 text-white rounded-lg p-3 text-center text-lg" placeholder="Enter Username" autocomplete="username">
                 <input type="password" id="password-input" class="w-full bg-gray-700 text-white rounded-lg p-3 text-center text-lg" placeholder="Enter Password" autocomplete="current-password">
@@ -80,9 +76,15 @@
                 <button id="login-button" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-lg text-lg">Login</button>
                 <button id="signup-button" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg text-lg">Sign Up</button>
             </div>
-             <div class="mt-4 text-left">
-                <input type="checkbox" id="remember-me" class="bg-gray-700 rounded">
-                <label for="remember-me" class="text-gray-400 ml-2">Remember me</label>
+             <div class="mt-4 text-left flex items-center justify-between">
+                <div>
+                    <input type="checkbox" id="remember-me" class="bg-gray-700 rounded">
+                    <label for="remember-me" class="text-gray-400 ml-2">Remember me</label>
+                </div>
+                <div>
+                    <input type="checkbox" id="show-password" class="bg-gray-700 rounded">
+                    <label for="show-password" class="text-gray-400 ml-2">Show Password</label>
+                </div>
             </div>
             <p id="login-error" class="text-red-400 mt-4 h-6"></p>
         </div>
@@ -103,7 +105,6 @@
                 </div>
             </div>
             <div id="shop-tier-buttons" class="flex flex-wrap gap-2 p-2 overflow-x-auto">
-                <!-- Tier buttons will be generated here -->
             </div>
             <div id="shop-case-list" class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-2"></div>
         </div>
@@ -169,33 +170,13 @@
         </div>
     </div>
 
+    <!-- Admin/Staff Panel Modal -->
     <div id="staff-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-30">
-        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl h-5/6 flex flex-col p-4">
-            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
-                <h2 class="text-2xl text-white font-bold">Staff Panel</h2>
-                <button onclick="closeModal('staff-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
-            </div>
-            <div class="flex-grow overflow-hidden">
-                <div class="h-full flex flex-col">
-                    <h3 class="text-xl font-bold text-white mb-2">All Players</h3>
-                    <div class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-lg">
-                        <table class="w-full text-left text-sm">
-                            <thead class="sticky top-0 bg-gray-900">
-                                <tr>
-                                    <th class="p-2">Username</th>
-                                    <th class="p-2">Role</th>
-                                    <th class="p-2">Money</th>
-                                    <th class="p-2">Clicks</th>
-                                    <th class="p-2">Chat Banned</th>
-                                    <th class="p-2">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="staff-player-list">
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+        <div id="admin-panel-content" class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl h-5/6 flex-col p-4 hidden">
+            <!-- Admin Panel Content -->
+        </div>
+        <div id="staff-panel-content" class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl h-5/6 flex-col p-4 hidden">
+             <!-- Staff Panel Content -->
         </div>
     </div>
 
@@ -235,6 +216,7 @@ const passwordInput = document.getElementById('password-input');
 const loginButton = document.getElementById('login-button');
 const signupButton = document.getElementById('signup-button');
 const rememberMe = document.getElementById('remember-me');
+const showPassword = document.getElementById('show-password');
 const loginError = document.getElementById('login-error');
 const usernameDisplay = document.getElementById('username-display');
 const moneyStat = document.getElementById('money-stat');
@@ -252,7 +234,8 @@ const skinCount = document.getElementById('skin-count');
 const sellButtonContainer = document.getElementById('sell-button-container');
 const sellSelectedBtn = document.getElementById('sell-selected-btn');
 const staffPanelButton = document.getElementById('staff-panel-button');
-const staffPlayerList = document.getElementById('staff-player-list');
+const adminPanelContent = document.getElementById('admin-panel-content');
+const staffPanelContent = document.getElementById('staff-panel-content');
 const leaderboardContent = document.getElementById('leaderboard-content');
 const logoutButton = document.getElementById('logout-button');
 const shopMoneyDisplay = document.getElementById('shop-money-display');
@@ -303,7 +286,6 @@ async function apiRequest(endpoint, body = {}, method = 'POST') {
         if (!response.ok) {
              throw new Error(text || `HTTP error! status: ${response.status}`);
         }
-        // Handle cases where the server might send an empty but successful response
         if (!text) {
             return { success: true };
         }
@@ -328,7 +310,10 @@ async function apiRequest(endpoint, body = {}, method = 'POST') {
 
 // --- Modals ---
 function openModal(modalId) {
-    if (modalId === 'staff-modal') renderStaffPanel();
+    if (modalId === 'staff-modal') {
+        if (gameState.playerData.role === 'admin') renderAdminPanel();
+        else if (gameState.playerData.role === 'moderator') renderStaffPanel();
+    }
     if (modalId === 'leaderboard-modal') renderLeaderboards();
     if (modalId === 'shop-modal') renderShop();
     if (modalId === 'profile-modal') prepareProfileModal();
@@ -348,19 +333,6 @@ function updateStats() {
     shopMoneyDisplay.textContent = formatNumber(player.money);
 }
 
-function updatePlayerList() {
-    playerList.innerHTML = '';
-    gameState.onlinePlayers.forEach(player => {
-        const li = document.createElement('li');
-        li.textContent = player;
-        li.className = 'text-white p-1 rounded';
-        if (player === gameState.username) {
-            li.classList.add('font-bold', 'text-cyan-300');
-        }
-        playerList.appendChild(li);
-    });
-}
-
 function updateChat(messages) {
     if (messages.length === 0) return;
     const shouldScroll = chatBox.scrollTop + chatBox.clientHeight >= chatBox.scrollHeight - 20;
@@ -369,8 +341,8 @@ function updateChat(messages) {
         const msgDiv = document.createElement('div');
         msgDiv.className = 'chat-message';
         if (msg.is_server_msg) {
-            msgDiv.classList.add('server-message');
-            msgDiv.textContent = msg.msg;
+            // We are hiding server join/leave messages now
+            return;
         } else {
             msgDiv.classList.add('player-message');
             const senderSpan = document.createElement('span');
@@ -530,7 +502,9 @@ async function handleLogin() {
         loginScreen.classList.add('hidden');
         gameContainer.classList.remove('hidden');
         usernameDisplay.textContent = user;
-        if (['admin', 'moderator', 'helpdesk'].includes(gameState.playerData.role)) {
+        
+        staffPanelButton.textContent = gameState.playerData.role === 'admin' ? 'Admin Panel' : 'Staff Panel';
+        if (['admin', 'moderator'].includes(gameState.playerData.role)) {
             staffPanelButton.classList.remove('hidden');
         }
         
@@ -540,7 +514,7 @@ async function handleLogin() {
         setupShopControls();
 
         updateLoop();
-        updateInterval = setInterval(updateLoop, 3000);
+        updateInterval = setInterval(updateLoop, 2000); // Faster updates
     } else {
         loginError.textContent = response.message || 'Login failed.';
     }
@@ -673,7 +647,6 @@ async function handleSaveProfile() {
             alert("Username changed! You will be logged out.");
             handleLogout();
         } else {
-            // Refresh player data to get updated flags
             const state = await apiRequest('/api/game_state', { username: gameState.username, last_chat_id: gameState.lastGlobalChatId });
             if(state.success) gameState.playerData = state.player_data;
             prepareProfileModal();
@@ -700,7 +673,7 @@ async function renderLeaderboards() {
         const boardDiv = document.createElement('div');
         boardDiv.className = 'bg-gray-700 p-3 rounded-lg';
         let listHtml = `<h4 class="text-white font-bold text-lg mb-2">${board}</h4><ol class="list-decimal list-inside space-y-1">`;
-        boardData.slice(0, 100).forEach(p => { // Only show top 100
+        boardData.slice(0, 100).forEach(p => { 
             listHtml += `<li class="truncate">${p.username} - <span class="font-mono text-green-300">${formatNumber(Math.floor(p.value))}</span></li>`;
         });
         listHtml += '</ol>';
@@ -709,10 +682,80 @@ async function renderLeaderboards() {
     }
 }
 
-// --- Staff Panel ---
+// --- Admin/Staff Panels ---
+async function renderAdminPanel() {
+    adminPanelContent.classList.remove('hidden');
+    staffPanelContent.classList.add('hidden');
+    
+    const stats = await apiRequest('/api/admin/server_stats', {username: gameState.username});
+    
+    adminPanelContent.innerHTML = `
+        <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
+            <h2 class="text-2xl text-white font-bold">Admin Panel</h2>
+            <button onclick="closeModal('staff-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+        </div>
+        <div class="flex flex-grow overflow-hidden gap-4">
+            <div class="w-1/4 flex flex-col gap-4">
+                <h3 class="text-xl font-bold text-white">Server Stats</h3>
+                <div class="bg-gray-900 p-4 rounded-lg space-y-2">
+                    <p>Online Players: <span class="font-mono text-cyan-300">${stats.online_players}</span></p>
+                    <p>Total Players: <span class="font-mono text-cyan-300">${stats.total_players}</span></p>
+                    <p>Total Money: <span class="font-mono text-green-400">$${formatNumber(stats.total_server_money)}</span></p>
+                    <p>Total Clicks: <span class="font-mono text-yellow-400">${formatNumber(stats.total_server_clicks)}</span></p>
+                    <p>Total Skins: <span class="font-mono text-purple-400">${formatNumber(stats.total_skins_in_game)}</span></p>
+                </div>
+            </div>
+            <div class="w-3/4 flex flex-col">
+                <h3 class="text-xl font-bold text-white mb-2">Player Management</h3>
+                <div class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-lg">
+                    <table class="w-full text-left text-sm">
+                        <thead class="sticky top-0 bg-gray-900">
+                            <tr>
+                                <th class="p-2">Username</th><th class="p-2">Role</th><th class="p-2">Money</th>
+                                <th class="p-2">Clicks</th><th class="p-2">Banned</th><th class="p-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-player-list-content"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    renderPlayerManagementTable('admin-player-list-content');
+}
+
 async function renderStaffPanel() {
+    staffPanelContent.classList.remove('hidden');
+    adminPanelContent.classList.add('hidden');
+    staffPanelContent.innerHTML = `
+        <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
+            <h2 class="text-2xl text-white font-bold">Staff Panel</h2>
+            <button onclick="closeModal('staff-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+        </div>
+        <div class="flex-grow overflow-hidden">
+            <div class="h-full flex flex-col">
+                <h3 class="text-xl font-bold text-white mb-2">Player Management</h3>
+                <div class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-lg">
+                    <table class="w-full text-left text-sm">
+                        <thead class="sticky top-0 bg-gray-900">
+                            <tr>
+                                <th class="p-2">Username</th><th class="p-2">Role</th><th class="p-2">Money</th>
+                                <th class="p-2">Clicks</th><th class="p-2">Banned</th><th class="p-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="staff-player-list-content"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    renderPlayerManagementTable('staff-player-list-content');
+}
+
+async function renderPlayerManagementTable(tbodyId) {
+    const tbody = document.getElementById(tbodyId);
     const allPlayers = await apiRequest('/api/admin/all_players', {username: gameState.username});
-    staffPlayerList.innerHTML = '';
+    tbody.innerHTML = '';
     const currentUserRole = gameState.playerData.role;
 
     Object.entries(allPlayers).filter(([name]) => !name.startsWith("AI_Player_")).sort(([a],[b])=>a.localeCompare(b)).forEach(([username, data]) => {
@@ -724,32 +767,33 @@ async function renderStaffPanel() {
         
         let actionsHtml = '';
         if(canEdit) {
-            actionsHtml += `<button class="text-blue-400 hover:text-blue-300" data-user="${username}">Edit</button>`;
+            actionsHtml += `<button class="text-blue-400 hover:text-blue-300" data-user="${username}" data-action="edit">Save</button>`;
         }
         if(canBan) {
-            actionsHtml += `<button class="ml-2 ${data.is_chat_banned ? 'text-green-400' : 'text-red-400'}" data-user="${username}" data-ban="${!data.is_chat_banned}">${data.is_chat_banned ? 'Unban' : 'Ban'}</button>`;
+            actionsHtml += `<button class="ml-2 ${data.is_chat_banned ? 'text-green-400' : 'text-red-400'}" data-user="${username}" data-action="ban" data-ban="${!data.is_chat_banned}">${data.is_chat_banned ? 'Unban' : 'Ban'}</button>`;
         }
 
         tr.innerHTML = `
             <td class="p-2">${username}</td>
             <td class="p-2">${canEdit && currentUserRole === 'admin' ? `<input type="text" value="${data.role}" class="bg-gray-800 rounded p-1 w-24 staff-edit" data-field="role">` : data.role}</td>
-            <td class="p-2">${canEdit ? `<input type="number" value="${data.money}" class="bg-gray-800 rounded p-1 w-32 staff-edit" data-field="money">` : formatNumber(data.money)}</td>
-            <td class="p-2">${canEdit ? `<input type="number" value="${data.clicks}" class="bg-gray-800 rounded p-1 w-32 staff-edit" data-field="clicks">` : formatNumber(data.clicks)}</td>
+            <td class="p-2">${canEdit ? `<input type="text" value="${data.money}" class="bg-gray-800 rounded p-1 w-32 staff-edit" data-field="money">` : formatNumber(data.money)}</td>
+            <td class="p-2">${canEdit ? `<input type="text" value="${data.clicks}" class="bg-gray-800 rounded p-1 w-32 staff-edit" data-field="clicks">` : formatNumber(data.clicks)}</td>
             <td class="p-2">${data.is_chat_banned}</td>
             <td class="p-2">${actionsHtml}</td>
         `;
-        staffPlayerList.appendChild(tr);
+        tbody.appendChild(tr);
     });
     
-    staffPlayerList.querySelectorAll('button').forEach(btn => {
+    tbody.querySelectorAll('button').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const targetUser = e.target.dataset.user;
-            if(e.target.dataset.ban) {
+            const action = e.target.dataset.action;
+            if(action === "ban") {
                 const isBanned = e.target.dataset.ban === 'true';
                 await apiRequest('/api/helpdesk/set_chat_ban', {username: gameState.username, target_user: targetUser, is_banned: isBanned});
-            } else {
+            } else if(action === "edit") {
                 const updates = {};
-                document.querySelectorAll(`#staff-player-list tr`).forEach(row => {
+                tbody.querySelectorAll('tr').forEach(row => {
                     if(row.querySelector('td').textContent === targetUser) {
                         row.querySelectorAll('.staff-edit').forEach(input => {
                             updates[input.dataset.field] = input.value;
@@ -758,7 +802,8 @@ async function renderStaffPanel() {
                 });
                 await apiRequest('/api/admin/update_player', {username: gameState.username, target_user: targetUser, updates: updates});
             }
-            renderStaffPanel();
+            if (currentUserRole === 'admin') renderAdminPanel();
+            else renderStaffPanel();
         });
     });
 }
@@ -771,7 +816,6 @@ async function updateLoop() {
         gameState.playerData = response.player_data;
         gameState.onlinePlayers = response.online_players;
         updateStats();
-        updatePlayerList();
         updateChat(response.new_global_messages);
     } else {
         alert("Connection to server lost. Please log in again.");
@@ -802,6 +846,9 @@ window.addEventListener('load', () => {
     passwordInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleLogin(); });
     logoutButton.addEventListener('click', handleLogout);
     saveProfileButton.addEventListener('click', handleSaveProfile);
+    showPassword.addEventListener('change', () => {
+        passwordInput.type = showPassword.checked ? 'text' : 'password';
+    });
 
     clickButton.addEventListener('click', async () => {
         const result = await apiRequest('/api/click', { username: gameState.username });
