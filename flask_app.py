@@ -1,243 +1,264 @@
-from flask import Flask, request, jsonify, send_from_directory
-import os, json, time, random, hashlib
-from pathlib import Path
+import os
+import json
+import random
+import time
+from flask import Flask, jsonify, request, session, render_template
+from flask_socketio import SocketIO, send, emit
+from werkzeug.security import generate_password_hash, check_password_hash
 
-app = Flask(__name__, static_folder='.', static_url_path='')
+# --- App Configuration ---
+app = Flask(__name__)
+# IMPORTANT: Change this secret key for production!
+app.config['SECRET_KEY'] = os.urandom(24) 
+socketio = SocketIO(app, async_mode='eventlet')
 
-BASE_DIR = Path(__file__).parent
-
-def md5_hash(text):
-    return hashlib.md5(text.encode('utf-8')).hexdigest()
-
-# load json files
-def load_json(name):
-    p = BASE_DIR / name
-    if not p.exists():
-        return {}
-    with open(p,'r',encoding='utf-8') as f:
+# --- Helper Functions for Data Handling ---
+def load_data(filename):
+    """Loads data from a JSON file."""
+    with open(filename, 'r') as f:
         return json.load(f)
 
-def save_json(name, data):
-    p = BASE_DIR / name
-    with open(p,'w',encoding='utf-8') as f:
+def save_data(filename, data):
+    """Saves data to a JSON file."""
+    with open(filename, 'w') as f:
         json.dump(data, f, indent=4)
 
-PLAYERS_FILE = 'players.json'
-RANKS_FILE = 'ranks.json'
-CASES_FILE = 'cases.json'
-SKINS_FILE = 'skins.json'
-RARITIES_FILE = 'rarities.json'
-SKINSETS_FILE = 'skin_sets.json'
+def get_player_by_username(username):
+    """Finds a player's data and UID by username."""
+    players = load_data('players.json')
+    for uid, data in players.items():
+        if data['username'].lower() == username.lower():
+            return uid, data
+    return None, None
 
-players = load_json(PLAYERS_FILE)
-ranks = load_json(RANKS_FILE)
-cases = load_json(CASES_FILE)
-skins = load_json(SKINS_FILE)
-rarities = load_json(RARITIES_FILE)
-skin_sets = load_json(SKINSETS_FILE)
-
-# Migration: ensure inventory and sort_order and ranks default
-for username, pdata in list(players.items()):
-    pdata.setdefault('inventory', {'cases': {}, 'skins': [], 'favorites': []})
-    pdata.setdefault('sort_order', 'price_desc')
-    role = pdata.get('role','player')
-    if role in ('admin','mod'):
-        pdata['rank'] = pdata.get('rank', 50)
-    else:
-        r = pdata.get('rank', 1)
-        if r == 0:
-            pdata['rank'] = 1
-        else:
-            pdata['rank'] = r if isinstance(r,int) and r>=1 else 1
-# Save migration
-save_json(PLAYERS_FILE, players)
-
-online_users = {}  # username -> {'login_time':..., 'last_action':...}
-
+# --- Main Game Routes ---
 @app.route('/')
 def index():
-    return send_from_directory(BASE_DIR, 'index.html')
+    """Renders the main game page."""
+    return render_template('index.html')
+
+@app.route('/signup', methods=['POST'])
+def signup():
+    """Handles new user registration."""
+    data = request.get_json()
+    username = data['username']
+    password = data['password']
+    
+    players = load_data('players.json')
+    
+    # Check if username already exists
+    if any(p['username'].lower() == username.lower() for p in players.values()):
+        return jsonify({'success': False, 'message': 'Username already exists.'}), 409
+
+    # Create new user
+    uid = str(int(max(players.keys(), key=int)) + 1)
+    new_user = {
+        "username": username,
+        "password": generate_password_hash(password),
+        "clicks": 0,
+        "money": 0.0,
+        "rank": "1", # Start at Silver I (ID 1)
+        "role": "player",
+        "cases": {},
+        "skins": [],
+        "time_played": 0
+    }
+    players[uid] = new_user
+    save_data('players.json', players)
+    
+    return jsonify({'success': True, 'message': 'Account created successfully!'})
 
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.get_json() or {}
-    username = data.get('username','').strip()
-    password = data.get('password','').strip()
-    if not username or not password:
-        return jsonify({'success':False,'message':'Missing'}),400
-    if username not in players:
-        return jsonify({'success':False,'message':'User not found'}),404
-    if players[username].get('password_hash') != md5_hash(password):
-        return jsonify({'success':False,'message':'Incorrect password'}),401
-    online_users[username] = {'login_time': time.time(), 'last_action': time.time()}
-    return jsonify({'success':True,'username':username,'role':players[username].get('role','player')})
+    """Handles user login."""
+    data = request.get_json()
+    username = data['username']
+    password = data['password']
+    
+    uid, player_data = get_player_by_username(username)
 
+    if player_data and check_password_hash(player_data['password'], password):
+        session['uid'] = uid
+        session['username'] = player_data['username']
+        return jsonify({'success': True})
+    
+    return jsonify({'success': False, 'message': 'Invalid username or password.'}), 401
+
+@app.route('/logout')
+def logout():
+    """Logs the user out by clearing the session."""
+    session.clear()
+    return jsonify({'success': True})
+
+@app.route('/get_game_data')
+def get_game_data():
+    """Provides all necessary data to start the game on the frontend."""
+    if 'uid' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+        
+    uid = session['uid']
+    players = load_data('players.json')
+    player_data = players.get(uid)
+
+    if not player_data:
+        session.clear()
+        return jsonify({'error': 'Player not found'}), 404
+
+    return jsonify({
+        'player_data': player_data,
+        'ranks': load_data('ranks.json'),
+        'cases': load_data('cases.json'),
+        'skins': load_data('skins.json')
+    })
+    
+# --- Gameplay API Routes ---
 @app.route('/click', methods=['POST'])
 def click():
-    data = request.get_json() or {}
-    username = data.get('username')
-    if not username or username not in players:
-        return jsonify({'success':False,'message':'Invalid user'}),400
-    p = players[username]
-    rank_idx = p.get('rank',1)
-    base_clicks = 1
-    try:
-        base_clicks = int(ranks.get(str(rank_idx), {}).get('base_clicks', 1))
-    except:
-        base_clicks = 1
-    p['clicks'] = p.get('clicks',0) + base_clicks
-    p['money'] = p.get('money',0) + max(1, int(base_clicks*0.1))
-    online_users.setdefault(username, {})['last_action'] = time.time()
-    save_json(PLAYERS_FILE, players)
-    return jsonify({'success':True,'clicks':p['clicks'],'money':p['money']})
+    """Processes a player's click, updating stats and checking for rank-ups."""
+    if 'uid' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+
+    uid = session['uid']
+    players = load_data('players.json')
+    player = players[uid]
+    ranks = load_data('ranks.json')
+    
+    current_rank_info = ranks[player['rank']]
+    
+    # Update stats
+    player['clicks'] += 1
+    player['money'] += current_rank_info['base_clicks']
+
+    # Check for rank up
+    next_rank_id = str(int(player['rank']) + 1)
+    if next_rank_id in ranks and player['clicks'] >= ranks[next_rank_id]['clicks_needed']:
+        player['rank'] = next_rank_id
+    
+    save_data('players.json', players)
+    return jsonify({'money': player['money'], 'clicks': player['clicks'], 'rank': player['rank']})
 
 @app.route('/buy_case', methods=['POST'])
 def buy_case():
-    data = request.get_json() or {}
-    username = data.get('username')
-    case_name = data.get('case_name')
-    qty = int(data.get('qty',1))
-    if not username or username not in players:
-        return jsonify({'success':False,'message':'Invalid user'}),400
-    if case_name not in cases:
-        return jsonify({'success':False,'message':'Invalid case'}),400
-    p = players[username]
-    price = int(cases[case_name].get('price',0)) * qty
-    if p.get('money',0) < price:
-        return jsonify({'success':False,'message':'Not enough money'}),402
-    p['money'] -= price
-    inv = p.setdefault('inventory', {'cases':{},'skins':[],'favorites':[]})
-    inv['cases'][case_name] = inv['cases'].get(case_name,0) + qty
-    online_users.setdefault(username,{})['last_action'] = time.time()
-    save_json(PLAYERS_FILE, players)
-    return jsonify({'success':True,'money':p['money'],'cases':inv['cases']})
+    """Handles a player buying a case from the shop."""
+    if 'uid' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+        
+    data = request.get_json()
+    case_id = data['case_id']
+    amount = int(data.get('amount', 1))
 
-@app.route('/get_cases', methods=['GET'])
-def get_cases():
-    username = request.args.get('username')
-    if not username or username not in players:
-        return jsonify({'success':False,'message':'Invalid user'}),400
-    inv = players[username].get('inventory',{})
-    return jsonify({'success':True,'cases':inv.get('cases',{})})
+    uid = session['uid']
+    players = load_data('players.json')
+    player = players[uid]
+    cases_data = load_data('cases.json')
+    
+    case_info = cases_data.get(case_id)
+    if not case_info:
+        return jsonify({'success': False, 'message': 'Case not found.'}), 404
 
-def pick_skin_from_case(case_name):
-    case = cases.get(case_name)
-    if not case:
-        return None
-    case_skins = case.get('skins',[])
-    weights = []
-    for s in case_skins:
-        rname = skins.get(s)
-        prob = rarities.get(rname, {}).get('probability', 0.01)
-        weights.append(prob)
-    total = sum(weights)
-    if total <= 0:
-        return random.choice(case_skins) if case_skins else None
-    r = random.random()*total
-    cum = 0
-    for s,w in zip(case_skins,weights):
-        cum += w
-        if r <= cum:
-            return s
-    return case_skins[-1] if case_skins else None
+    total_cost = case_info['price'] * amount
+    if player['money'] < total_cost:
+        return jsonify({'success': False, 'message': 'Not enough money.'}), 400
+
+    # Process purchase
+    player['money'] -= total_cost
+    player['cases'][case_id] = player['cases'].get(case_id, 0) + amount
+    
+    save_data('players.json', players)
+    return jsonify({'success': True, 'player_data': player})
 
 @app.route('/open_case', methods=['POST'])
 def open_case():
-    data = request.get_json() or {}
-    username = data.get('username')
-    case_name = data.get('case_name')
-    if not username or username not in players:
-        return jsonify({'success':False,'message':'Invalid user'}),400
-    inv = players[username].setdefault('inventory', {'cases':{},'skins':[],'favorites':[]})
-    if inv['cases'].get(case_name,0) <= 0:
-        return jsonify({'success':False,'message':'No such case in inventory'}),400
-    skin = pick_skin_from_case(case_name)
-    if not skin:
-        return jsonify({'success':False,'message':'No skin available'}),500
-    inv['cases'][case_name] -= 1
-    if inv['cases'][case_name] <= 0:
-        del inv['cases'][case_name]
-    inv['skins'].append(skin)
-    online_users.setdefault(username,{})['last_action'] = time.time()
-    save_json(PLAYERS_FILE, players)
-    return jsonify({'success':True,'skin':skin,'skins':inv['skins']})
+    """Handles opening a case and awarding a random skin."""
+    if 'uid' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    
+    case_id = request.get_json()['case_id']
+    uid = session['uid']
+    players = load_data('players.json')
+    player = players[uid]
 
-@app.route('/get_skins', methods=['GET'])
-def get_skins():
-    username = request.args.get('username')
-    if not username or username not in players:
-        return jsonify({'success':False,'message':'Invalid user'}),400
-    p = players[username]
-    inv = p.get('inventory',{})
-    skins_list = list(inv.get('skins',[]))
-    sort_order = p.get('sort_order','price_desc')
-    def skin_value(s):
-        r = skins.get(s)
-        vr = rarities.get(r, {}).get('value_range',[0,0])
-        try:
-            return (vr[0]+vr[1])/2
-        except:
-            return 0
-    if sort_order == 'price_desc':
-        skins_list.sort(key=lambda s: skin_value(s), reverse=True)
-    elif sort_order == 'price_asc':
-        skins_list.sort(key=lambda s: skin_value(s))
-    elif sort_order == 'rarity':
-        def rarity_sort(s):
-            r = skins.get(s)
-            return rarities.get(r, {}).get('sort_value', 0)
-        skins_list.sort(key=rarity_sort, reverse=True)
-    elif sort_order == 'az':
-        skins_list.sort(key=lambda s: s.lower())
-    elif sort_order == 'za':
-        skins_list.sort(key=lambda s: s.lower(), reverse=True)
-    return jsonify({'success':True,'skins':skins_list,'favorites':inv.get('favorites',[]),'sort_order':sort_order})
+    if player['cases'].get(case_id, 0) < 1:
+        return jsonify({'success': False, 'message': 'You do not own this case.'}), 400
 
-@app.route('/set_sort_order', methods=['POST'])
-def set_sort_order():
-    data = request.get_json() or {}
-    username = data.get('username')
-    order = data.get('order')
-    if not username or username not in players:
-        return jsonify({'success':False,'message':'Invalid user'}),400
-    players[username]['sort_order'] = order
-    save_json(PLAYERS_FILE, players)
-    return jsonify({'success':True,'sort_order':order})
+    # Consume the case
+    player['cases'][case_id] -= 1
+    if player['cases'][case_id] == 0:
+        del player['cases'][case_id]
 
-@app.route('/favorite_skin', methods=['POST'])
-def favorite_skin():
-    data = request.get_json() or {}
-    username = data.get('username'); skin = data.get('skin')
-    if not username or username not in players or not skin:
-        return jsonify({'success':False,'message':'Invalid'}),400
-    inv = players[username].setdefault('inventory', {'cases':{},'skins':[],'favorites':[]})
-    if skin in inv.get('skins',[]):
-        inv['skins'].remove(skin)
-        inv['favorites'].append(skin)
-        save_json(PLAYERS_FILE, players)
-        return jsonify({'success':True})
-    return jsonify({'success':False,'message':'Skin not owned'}),400
+    # Get a random skin from the case
+    cases_data = load_data('cases.json')
+    skins_data = load_data('skins.json')
+    possible_skin_ids = cases_data[case_id]['skins']
+    
+    # Simple random choice - can be improved with weighted rarities
+    won_skin_id = random.choice(possible_skin_ids)
+    won_skin_info = skins_data[won_skin_id]
 
-@app.route('/unfavorite_skin', methods=['POST'])
-def unfavorite_skin():
-    data = request.get_json() or {}
-    username = data.get('username'); skin = data.get('skin')
-    if not username or username not in players or not skin:
-        return jsonify({'success':False,'message':'Invalid'}),400
-    inv = players[username].setdefault('inventory', {'cases':{},'skins':[],'favorites':[]})
-    if skin in inv.get('favorites',[]):
-        inv['favorites'].remove(skin)
-        inv['skins'].append(skin)
-        save_json(PLAYERS_FILE, players)
-        return jsonify({'success':True})
-    return jsonify({'success':False,'message':'Skin not in favorites'}),400
+    # Add a unique instance of the skin to player inventory
+    skin_instance = {
+        "instance_id": f"skin_{int(time.time() * 1000)}_{random.randint(100, 999)}",
+        "skin_id": won_skin_id,
+        "name": won_skin_info['name'],
+        "value": won_skin_info['value'],
+        "rarity": won_skin_info['rarity']
+    }
+    player['skins'].append(skin_instance)
+    
+    save_data('players.json', players)
+    return jsonify({'success': True, 'player_data': player, 'won_skin': skin_instance})
 
-@app.route('/all_players', methods=['GET'])
-def all_players():
-    out = []
-    for u,p in players.items():
-        out.append({'username':u,'role':p.get('role','player'),'money':p.get('money',0),'clicks':p.get('clicks',0)})
-    return jsonify({'success':True,'players':out})
+# --- Admin Routes ---
+@app.route('/get_admin_data')
+def get_admin_data():
+    """Gets player data for the admin panel, excluding AI."""
+    if 'uid' not in session or load_data('players.json')[session['uid']]['role'] not in ['admin', 'mod']:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    players = load_data('players.json')
+    # Filter out AI players
+    human_players = {uid: data for uid, data in players.items() if data.get('role') != 'ai'}
+    
+    return jsonify(human_players)
 
+@app.route('/update_player_role', methods=['POST'])
+def update_player_role():
+    if 'uid' not in session or load_data('players.json')[session['uid']]['role'] != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.get_json()
+    target_uid = data['uid']
+    new_role = data['role']
+
+    players = load_data('players.json')
+    if target_uid in players:
+        players[target_uid]['role'] = new_role
+        save_data('players.json', players)
+        return jsonify({'success': True})
+    
+    return jsonify({'success': False, 'message': 'Player not found.'}), 404
+
+# --- Chat Functionality (SocketIO) ---
+@socketio.on('connect')
+def handle_connect():
+    """Logs when a user connects to the chat."""
+    if 'username' in session:
+        print(f"User {session['username']} connected.")
+
+@socketio.on('send_message')
+def handle_send_message(data):
+    """Broadcasts a message to all connected clients."""
+    if 'username' in session:
+        players = load_data('players.json')
+        player_role = players.get(session['uid'], {}).get('role', 'player')
+        
+        msg_data = {
+            'username': session['username'],
+            'message': data['message'],
+            'role': player_role
+        }
+        emit('receive_message', msg_data, broadcast=True)
+
+# --- Main Execution ---
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
