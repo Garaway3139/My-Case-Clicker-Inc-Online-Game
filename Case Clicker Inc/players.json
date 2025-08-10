@@ -1,6 +1,6 @@
 {
     "admin": {
-        "password_hash": "21232f297a57a5a743894a0e4a801fc3",
+        "password_hash": "81dc9bdb52d04dc20036dbd8313ed055",
         "role": "admin",
         "clicks": 1000000,
         "money": 100000000,
@@ -17,7 +17,7 @@
         "has_changed_password": false
     },
     "player1": {
-        "password_hash": "5d41402abc4b2a76b9719d911017c592",
+        "password_hash": "81dc9bdb52d04dc20036dbd8313ed055",
         "role": "player",
         "clicks": 100,
         "money": 500,
