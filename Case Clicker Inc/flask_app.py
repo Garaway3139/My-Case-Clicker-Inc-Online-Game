@@ -14,11 +14,12 @@ from datetime import datetime
 app = Flask(__name__)
 
 # --- Configuration ---
-# The BASE_DIR is the directory where this script is running.
-# We will look for all .json files in this same directory.
+# The BASE_DIR is the root directory where this script is running.
+# We will search for all .json files starting from here.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PLAYERS_FILE = os.path.join(BASE_DIR, 'players.json')
-SERVER_STATE_FILE = os.path.join(BASE_DIR, 'server_state.json')
+# We will determine the file paths dynamically in load_or_create_files()
+PLAYERS_FILE = None
+SERVER_STATE_FILE = None
 
 # --- In-Memory Database & Game Data ---
 DB = {
@@ -35,33 +36,65 @@ GAME_DATA = {
 def md5_hash(text):
     return hashlib.md5(text.encode('utf-8')).hexdigest()
 
+def find_file(filename, search_path):
+    """Searches for a file in a directory and its subdirectories."""
+    for root, dirs, files in os.walk(search_path):
+        if filename in files:
+            return os.path.join(root, filename)
+    return None
+
 def save_players_data():
     """Saves the current players data to the JSON file."""
-    with open(PLAYERS_FILE, 'w') as f:
-        json.dump(DB["players"], f, indent=4)
+    if PLAYERS_FILE:
+        with open(PLAYERS_FILE, 'w') as f:
+            json.dump(DB["players"], f, indent=4)
 
 def save_server_state():
     """Saves the server state (like leaderboard reset times)."""
-    with open(SERVER_STATE_FILE, 'w') as f:
-        json.dump(DB["server_state"], f, indent=4)
+    if SERVER_STATE_FILE:
+        with open(SERVER_STATE_FILE, 'w') as f:
+            json.dump(DB["server_state"], f, indent=4)
 
 def load_or_create_files():
-    """Loads all data from JSON files into memory, creating them if they don't exist."""
-    # Game Data
+    """
+    Finds all required .json files within the project directory and loads them.
+    This is robust against different deployment folder structures.
+    """
+    global PLAYERS_FILE, SERVER_STATE_FILE
+    
+    # --- Find and Load Game Data ---
     try:
-        # We now look for the files in the same directory as the flask_app.py script
-        with open(os.path.join(BASE_DIR, "rarities.json"), 'r') as f: GAME_DATA["rarities"] = json.load(f)
-        with open(os.path.join(BASE_DIR, "ranks.json"), 'r') as f: GAME_DATA["ranks"] = {int(k): v for k, v in json.load(f).items()}
-        with open(os.path.join(BASE_DIR, "skins.json"), 'r') as f: GAME_DATA["all_skins"] = json.load(f)
-        with open(os.path.join(BASE_DIR, "cases.json"), 'r') as f: GAME_DATA["cases"] = json.load(f)
+        required_game_files = ["rarities.json", "ranks.json", "skins.json", "cases.json"]
+        file_paths = {}
+
+        print(f"🔍 Starting search for data files in '{BASE_DIR}' and its subdirectories...")
+
+        for filename in required_game_files:
+            path = find_file(filename, BASE_DIR)
+            if path is None:
+                print(f"❌ FATAL ERROR: Could not find required file '{filename}' anywhere in the project directory.")
+                print("Please ensure all .json files are present in your project repository.")
+                return False
+            file_paths[filename] = path
+            print(f"  ✔️ Found '{filename}' at: {path}")
+
+        with open(file_paths["rarities.json"], 'r') as f: GAME_DATA["rarities"] = json.load(f)
+        with open(file_paths["ranks.json"], 'r') as f: GAME_DATA["ranks"] = {int(k): v for k, v in json.load(f).items()}
+        with open(file_paths["skins.json"], 'r') as f: GAME_DATA["all_skins"] = json.load(f)
+        with open(file_paths["cases.json"], 'r') as f: GAME_DATA["cases"] = json.load(f)
         print("✅ Game data loaded successfully.")
+
     except Exception as e:
-        print(f"❌ FATAL ERROR: Could not load game data from '{BASE_DIR}': {e}")
+        print(f"❌ FATAL ERROR: An error occurred while loading game data: {e}")
         return False
 
-    # Players Data
-    if not os.path.exists(PLAYERS_FILE):
-        print("⚠️ Players file not found. Creating a new one with default accounts.")
+    # --- Find and Load Player/Server State Data ---
+    PLAYERS_FILE = find_file("players.json", BASE_DIR)
+    SERVER_STATE_FILE = find_file("server_state.json", BASE_DIR)
+
+    if not PLAYERS_FILE:
+        print("⚠️ Players file not found. Creating a new one in the root directory.")
+        PLAYERS_FILE = os.path.join(BASE_DIR, 'players.json')
         default_players = {
             "admin": {"password_hash": md5_hash("admin"), "role": "admin", "clicks": 1000000, "money": 100000000, "skins": [], "cases": {}, "time_played": 0, "money_spent": 0, "cases_opened": 0, "monthly_clicks": 0, "monthly_cases_opened": 0, "is_chat_banned": False, "rank": 17},
             "moderator": {"password_hash": md5_hash("moderator"), "role": "moderator", "clicks": 500000, "money": 5000000, "skins": [], "cases": {}, "time_played": 0, "money_spent": 0, "cases_opened": 0, "monthly_clicks": 0, "monthly_cases_opened": 0, "is_chat_banned": False, "rank": 14},
@@ -74,18 +107,20 @@ def load_or_create_files():
     else:
         with open(PLAYERS_FILE, 'r') as f:
             DB["players"] = json.load(f)
-    print(f"✅ Loaded {len(DB['players'])} players.")
+    print(f"✅ Loaded {len(DB['players'])} players from {PLAYERS_FILE}")
 
-    # Server State
-    if not os.path.exists(SERVER_STATE_FILE):
+    if not SERVER_STATE_FILE:
+        print("⚠️ Server state file not found. Creating a new one.")
+        SERVER_STATE_FILE = os.path.join(BASE_DIR, 'server_state.json')
         DB["server_state"] = {"last_monthly_reset": datetime.now().strftime("%Y-%m")}
         save_server_state()
     else:
         with open(SERVER_STATE_FILE, 'r') as f:
             DB["server_state"] = json.load(f)
-    print("✅ Server state loaded.")
+    print(f"✅ Server state loaded from {SERVER_STATE_FILE}")
     
     return True
+
 
 def check_and_reset_monthly_leaderboards():
     """Checks if a new month has started and resets monthly stats if so."""
@@ -142,8 +177,15 @@ def role_required(required_roles):
 # --- API Routes ---
 @app.route('/')
 def index():
-    try: return render_template_string(open("index.html").read())
-    except FileNotFoundError: return "<h1>Error: index.html not found.</h1>", 404
+    try: 
+        # Find index.html dynamically as well
+        index_path = find_file("index.html", BASE_DIR)
+        if not index_path:
+             return "<h1>FATAL ERROR: index.html not found in project.</h1>", 404
+        return render_template_string(open(index_path).read())
+    except Exception as e:
+        return f"<h1>Error loading page: {e}</h1>", 500
+
 
 @app.route('/api/signup', methods=['POST'])
 def signup():
@@ -187,8 +229,8 @@ def get_game_state():
         return jsonify({"success": False, "message": "Not authenticated."}), 401
     
     # Update player's time played and last seen
-    DB["online_users"][username]["last_seen"] = time.time()
-    DB["players"][username]["time_played"] += 3 # Approximating based on poll interval
+    if username in DB["players"]:
+        DB["players"][username]["time_played"] = DB["players"][username].get("time_played", 0) + 3 # Approximating based on poll interval
     
     # Prune disconnected users
     current_time = time.time()
@@ -292,7 +334,8 @@ def get_all_players():
     safe_players = {}
     for uname, udata in DB["players"].items():
         safe_data = udata.copy()
-        del safe_data["password_hash"]
+        if "password_hash" in safe_data:
+            del safe_data["password_hash"]
         safe_players[uname] = safe_data
     return jsonify(safe_players)
 
@@ -418,5 +461,8 @@ if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
 else:
     # When run by gunicorn, load data
-    load_or_create_files()
+    if not load_or_create_files():
+        # If loading fails, we should not continue.
+        # This will cause gunicorn to stop the worker, which is the desired behavior.
+        sys.exit(1)
     check_and_reset_monthly_leaderboards()
