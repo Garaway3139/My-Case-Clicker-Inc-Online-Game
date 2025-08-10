@@ -98,8 +98,8 @@ def load_or_create_files():
     except (FileNotFoundError, json.JSONDecodeError):
         print("⚠️ Players file not found or corrupted. Creating a new one.")
         DB["players"] = {
-            "admin": {"password_hash": "21232f297a57a5a743894a0e4a801fc3", "role": "admin", "clicks": 1000000, "money": 100000000, "skins": [], "cases": {}, "time_played": 0, "money_spent": 0, "cases_opened": 0, "monthly_clicks": 0, "monthly_cases_opened": 0, "is_chat_banned": False, "rank": 17, "has_changed_username": False, "has_changed_password": False},
-            "player1": {"password_hash": "5d41402abc4b2a76b9719d911017c592", "role": "player", "clicks": 100, "money": 500, "skins": [], "cases": {}, "time_played": 0, "money_spent": 0, "cases_opened": 0, "monthly_clicks": 0, "monthly_cases_opened": 0, "is_chat_banned": False, "rank": 1, "has_changed_username": False, "has_changed_password": False}
+            "admin": {"password_hash": "81dc9bdb52d04dc20036dbd8313ed055", "role": "admin", "clicks": 1000000, "money": 100000000, "skins": [], "cases": {}, "time_played": 0, "money_spent": 0, "cases_opened": 0, "monthly_clicks": 0, "monthly_cases_opened": 0, "is_chat_banned": False, "rank": 17, "has_changed_username": False, "has_changed_password": False},
+            "player1": {"password_hash": "81dc9bdb52d04dc20036dbd8313ed055", "role": "player", "clicks": 100, "money": 500, "skins": [], "cases": {}, "time_played": 0, "money_spent": 0, "cases_opened": 0, "monthly_clicks": 0, "monthly_cases_opened": 0, "is_chat_banned": False, "rank": 1, "has_changed_username": False, "has_changed_password": False}
         }
     
     # Check for and generate AI players if they don't exist
