@@ -14,7 +14,8 @@
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #1a202c; }
         ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
-        .chat-tab.active { background-color: #0891b2; color: white; }
+        .chat-tab { transition: background-color 0.2s; }
+        .chat-tab.active { background-color: #0891b2; color: white; border-color: #0891b2; }
     </style>
 </head>
 <body class="bg-gray-900 text-cyan-300 overflow-hidden h-screen">
@@ -74,6 +75,8 @@
     <div id="leaderboard-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-20"></div>
     <div id="staff-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-30"></div>
     <div id="unboxing-modal" class="modal fixed inset-0 bg-black bg-opacity-85 items-center justify-center z-50"></div>
+    <div id="private-chat-select-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center z-40"></div>
+
 
 <script>
 // --- Client-Side Game Logic ---
@@ -101,7 +104,8 @@ async function apiRequest(endpoint, body = {}, method = 'POST') {
         if (!response.ok) throw new Error(data.message || 'An unknown server error occurred.');
         return data;
     } catch (error) {
-        console.error(`API Error at ${endpoint}:`, error);
+        console.error(`API Error at ${endpoint}:`, error.message);
+        document.getElementById('login-error').textContent = error.message;
         return { success: false, message: error.message };
     }
 }
@@ -112,6 +116,7 @@ function openModal(modalId) {
     if (modalId === 'staff-modal') renderAdminPanel();
     if (modalId === 'leaderboard-modal') renderLeaderboards();
     if (modalId === 'inventory-modal') renderInventory();
+    if (modalId === 'shop-modal') renderShop();
     modal.classList.add('active');
 }
 function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
@@ -119,6 +124,7 @@ function closeModal(modalId) { document.getElementById(modalId).classList.remove
 // --- UI Rendering ---
 function updateStats() {
     const p = gameState.playerData;
+    if (!p) return;
     document.getElementById('username-display').textContent = gameState.username;
     document.getElementById('money-stat').textContent = `$${(p.money || 0).toLocaleString()}`;
     document.getElementById('clicks-stat').textContent = (p.clicks || 0).toLocaleString();
@@ -127,6 +133,7 @@ function updateStats() {
 }
 
 function renderInventory() {
+    // This function now generates the full modal content to ensure it's always fresh
     const modal = document.getElementById('inventory-modal');
     modal.innerHTML = `
         <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-6xl h-5/6 flex flex-col p-4">
@@ -147,7 +154,10 @@ function renderInventory() {
         </div>`;
 
     const caseList = document.getElementById('inventory-case-list');
+    const skinList = document.getElementById('inventory-skin-list');
     caseList.innerHTML = '';
+    skinList.innerHTML = '';
+
     Object.entries(gameState.playerData.cases || {}).sort(([a],[b])=> a.localeCompare(b)).forEach(([name, count]) => {
         if (count > 0) {
             const div = document.createElement('div');
@@ -157,8 +167,7 @@ function renderInventory() {
             caseList.appendChild(div);
         }
     });
-    const skinList = document.getElementById('inventory-skin-list');
-    skinList.innerHTML = '';
+
     (gameState.playerData.skins || []).sort((a,b) => b.value - a.value).forEach(skin => {
         const div = document.createElement('div');
         div.className = 'bg-gray-700 p-2 rounded';
@@ -166,6 +175,49 @@ function renderInventory() {
         skinList.appendChild(div);
     });
     document.getElementById('skin-count').textContent = (gameState.playerData.skins || []).length;
+}
+
+function renderShop() {
+    const modal = document.getElementById('shop-modal');
+    modal.innerHTML = `
+        <div class="bg-gray-800 rounded-lg shadow-2xl w-full max-w-6xl h-5/6 flex flex-col p-4">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
+                <h2 class="text-2xl text-white font-bold">Case Shop</h2>
+                <button onclick="closeModal('shop-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div id="shop-tier-buttons" class="flex flex-wrap gap-2 p-2 overflow-x-auto"></div>
+            <div id="shop-case-list" class="flex-grow overflow-y-auto grid grid-cols-1 md:grid-cols-4 gap-4 p-2"></div>
+        </div>`;
+    
+    const tierContainer = document.getElementById('shop-tier-buttons');
+    const caseContainer = document.getElementById('shop-case-list');
+    let activeTier = 1;
+
+    function displayCases() {
+        caseContainer.innerHTML = '';
+        const cases = Object.entries(gameData.cases || {}).filter(([,c]) => c.tier === activeTier);
+        cases.forEach(([name, caseInfo]) => {
+            const div = document.createElement('div');
+            div.className = 'bg-gray-700 p-4 rounded-lg';
+            div.innerHTML = `<h4 class="text-lg font-bold text-white truncate">${name}</h4><p class="text-green-400 font-mono">$${parseFloat(caseInfo.price).toLocaleString()}</p>`;
+            caseContainer.appendChild(div);
+        });
+    }
+
+    for (let i = 1; i <= 20; i++) {
+        const button = document.createElement('button');
+        button.className = 'bg-gray-700 p-2 rounded';
+        if (i === activeTier) button.classList.add('bg-cyan-600');
+        button.textContent = `T${i}`;
+        button.onclick = () => {
+            activeTier = i;
+            tierContainer.querySelectorAll('button').forEach(btn => btn.classList.remove('bg-cyan-600'));
+            button.classList.add('bg-cyan-600');
+            displayCases();
+        };
+        tierContainer.appendChild(button);
+    }
+    displayCases(); // Initial render
 }
 
 function renderLeaderboards() {
@@ -209,26 +261,20 @@ function setupChatTabs() {
     if (['helpdesk', 'moderator', 'admin'].includes(gameState.playerData.role)) {
         availableTabs.staff = 'Staff';
     }
-    
-    // Add open private chats to tabs
-    Object.keys(gameState.chats).forEach(key => {
-        if (key !== 'global' && key !== 'staff') {
-            const otherUser = key.split('-').find(name => name !== gameState.username);
-            availableTabs[key] = `Private: ${otherUser}`;
-        }
-    });
+    availableTabs.private = 'Private'; // Add a permanent private tab
 
     for (const channelId in availableTabs) {
         const tab = document.createElement('button');
-        tab.className = 'chat-tab px-4 py-2 text-sm';
+        tab.className = 'chat-tab px-4 py-2 text-sm border-b-2 border-transparent';
         tab.textContent = availableTabs[channelId];
-        const isActive = gameState.activeChat.channel === channelId || (gameState.activeChat.channel === 'private' && channelId.includes(gameState.activeChat.target));
-        if (isActive) tab.classList.add('active');
+        if (channelId === gameState.activeChat.channel) tab.classList.add('active');
         
         tab.onclick = () => {
-            const target = channelId.includes('-') ? channelId.split('-').find(u => u !== gameState.username) : null;
-            const channel = target ? 'private' : channelId;
-            switchChatTab(channel, target);
+            if (channelId === 'private') {
+                openPrivateChatSelector();
+            } else {
+                switchChatTab(channelId);
+            }
         };
         tabsContainer.appendChild(tab);
     }
@@ -237,7 +283,7 @@ function switchChatTab(channel, target = null) {
     gameState.activeChat = { channel, target };
     const targetEl = document.getElementById('private-chat-target');
     if (target) {
-        targetEl.textContent = `Chatting with ${target}`;
+        targetEl.innerHTML = `Chatting with: <strong>${target}</strong> <button onclick="switchChatTab('global')" class="text-red-400 ml-2">[x]</button>`;
         targetEl.classList.remove('hidden');
     } else {
         targetEl.classList.add('hidden');
@@ -248,17 +294,38 @@ function switchChatTab(channel, target = null) {
 function renderChatMessages() {
     const chatArea = document.getElementById('chat-area');
     chatArea.innerHTML = '';
-    let currentChannelId = gameState.activeChat.channel;
-    if (currentChannelId === 'private') {
-        currentChannelId = [gameState.username, gameState.activeChat.target].sort().join('-');
+    let channelId = gameState.activeChat.channel;
+    if (channelId === 'private') {
+        channelId = [gameState.username, gameState.activeChat.target].sort().join('-');
     }
-    const messages = gameState.chats[currentChannelId] || [];
+    const messages = gameState.chats[channelId] || [];
     messages.forEach(msg => {
         const div = document.createElement('div');
         div.innerHTML = `<strong class="font-bold text-cyan-400">${msg.sender}:</strong> ${msg.msg}`;
         chatArea.appendChild(div);
     });
     chatArea.scrollTop = chatArea.scrollHeight;
+}
+function openPrivateChatSelector() {
+    const modal = document.getElementById('private-chat-select-modal');
+    let playerListHTML = gameState.onlinePlayers.filter(p => p !== gameState.username)
+        .map(p => `<li class="p-2 hover:bg-gray-700 cursor-pointer rounded" onclick="startPrivateChat('${p}')">${p}</li>`).join('');
+    
+    modal.innerHTML = `
+        <div class="bg-gray-800 p-4 rounded-lg w-full max-w-sm">
+             <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl text-white font-bold">Start Private Chat</h2>
+                <button onclick="closeModal('private-chat-select-modal')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <ul class="space-y-1">${playerListHTML || 'No other players online.'}</ul>
+        </div>`;
+    modal.classList.add('active');
+}
+function startPrivateChat(targetUsername) {
+    const convoKey = [gameState.username, targetUsername].sort().join('-');
+    if (!gameState.chats[convoKey]) gameState.chats[convoKey] = [];
+    switchChatTab('private', targetUsername);
+    closeModal('private-chat-select-modal');
 }
 
 // --- Admin Panel ---
@@ -279,8 +346,10 @@ async function renderAdminPanel() {
             </div>
         </div>`;
     
-    const allPlayersData = await apiRequest('/api/admin/all_players', { username: gameState.username });
-    const playerList = Object.entries(allPlayersData).filter(([name]) => !allPlayersData[name].role.includes("ai"));
+    const data = await apiRequest('/api/admin/all_players', { username: gameState.username });
+    if (!data.success) { document.getElementById('admin-player-list').textContent = data.message; return; }
+    
+    const playerList = Object.entries(data).filter(([name, pdata]) => pdata.role !== "ai");
     const listEl = document.getElementById('admin-player-list');
 
     const displayPlayers = (players) => {
@@ -322,7 +391,7 @@ async function showPlayerDetails(username) {
             <button id="temp-ban-btn" class="bg-orange-600 p-2 rounded">Temp Ban Server</button>
             <button id="perm-ban-btn" class="bg-red-700 p-2 rounded">Perm Ban Server</button>
         </div>
-        <div class="mt-4"><button class="bg-gray-600 p-2 rounded" onclick="alert('Content management is a future feature.')">Manage Content (Test)</button></div>`;
+        <div class="mt-4"><button class="bg-gray-600 p-2 rounded" onclick="alert('This feature would allow editing game files like cases.json from a web interface.')">Manage Content</button></div>`;
     
     if (canEditValues) {
         document.getElementById('save-btn').onclick = async () => {
@@ -342,13 +411,12 @@ async function showPlayerDetails(username) {
         alert(res.message); showPlayerDetails(username);
     };
     document.getElementById('perm-ban-btn').onclick = async () => {
-        if (confirm(`Are you absolutely sure you want to PERMANENTLY ban ${username}? This cannot be undone.`)) {
-            const res = await apiRequest('/api/admin/set_ban', { username: gameState.username, target_user: username, ban_type: 'server', duration_hours: null });
+        if (confirm(`Are you absolutely sure you want to PERMANENTLY ban ${username}?`)) {
+            const res = await apiRequest('/api/admin/set_ban', { username: gameState.username, target_user: username, ban_type: 'server' });
             alert(res.message); showPlayerDetails(username);
         }
     };
 }
-
 
 // --- Game Actions ---
 async function handleLogin() {
@@ -363,12 +431,11 @@ async function handleLogin() {
         if (['admin', 'moderator', 'helpdesk'].includes(response.player_data.role)) {
             document.getElementById('staff-panel-button').classList.remove('hidden');
         }
-        await initializeGameData();
+        // CRITICAL FIX: Ensure game data is loaded BEFORE first render
+        await initializeGameData(); 
         updateStats();
         setupChatTabs();
         updateInterval = setInterval(updateLoop, 3000);
-    } else {
-        document.getElementById('login-error').textContent = response.message;
     }
 }
 async function handleOpenCase(caseName) {
@@ -378,7 +445,6 @@ async function handleOpenCase(caseName) {
     const result = await apiRequest('/api/open_case', { username: gameState.username, case_name: caseName });
     if (result.success) {
         gameState.playerData = result.player_data;
-        renderInventory();
         const item = result.item_won;
         modal.innerHTML = `
             <div class="bg-gray-800 border-4 border-cyan-400 rounded-lg p-8 text-center">
