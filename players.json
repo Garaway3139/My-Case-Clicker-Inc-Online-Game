@@ -12,7 +12,7 @@
         "monthly_clicks": 0,
         "monthly_cases_opened": 0,
         "is_chat_banned": false,
-        "rank": 17,
+        "rank": 50,
         "has_changed_username": false,
         "has_changed_password": false
     },
@@ -29,7 +29,7 @@
         "monthly_clicks": 0,
         "monthly_cases_opened": 0,
         "is_chat_banned": false,
-        "rank": 1,
+        "rank": 0,
         "has_changed_username": false,
         "has_changed_password": false
     }
