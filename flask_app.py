@@ -18,7 +18,10 @@ CHAT_LOG_FILE = BASE_DIR / 'chat_log.json'
 def load_json(name):
     p = BASE_DIR / name
     if not p.exists(): return {}
-    with open(p, 'r', encoding='utf-8') as f: return json.load(f)
+    try:
+        with open(p, 'r', encoding='utf-8') as f: return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
 
 def save_json(name, data):
     p = BASE_DIR / name
@@ -32,19 +35,12 @@ RARITIES = load_json('rarities.json')
 RANKS = load_json('ranks.json')
 
 # --- Helper Functions ---
-def get_player_data(username):
-    return PLAYERS.get(username, None)
-
 def get_skin_value(skin_name):
     rarity_name = SKINS.get(skin_name)
     if rarity_name:
         value_range = RARITIES.get(rarity_name, {}).get('value_range', [1, 1])
         return random.randint(value_range[0], value_range[1])
     return 1
-
-def save_all_data():
-    """Consolidated save function."""
-    save_json('players.json', PLAYERS)
 
 # --- Main Route ---
 @app.route('/')
@@ -72,7 +68,7 @@ def signup():
         "is_chat_banned": False,
         "has_changed_username": False, "has_changed_password": False
     }
-    save_all_data()
+    save_json('players.json', PLAYERS)
     return jsonify({'success': True, 'message': 'Account created! You can now log in.'})
 
 @app.route('/api/login', methods=['POST'])
@@ -81,8 +77,10 @@ def login():
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
 
-    player = get_player_data(username)
-    if not player or not check_password_hash(player.get('password_hash', ''), password):
+    player = PLAYERS.get(username)
+
+    # This is the corrected logic
+    if not player or not player.get('password_hash') or not check_password_hash(player['password_hash'], password):
         return jsonify({'success': False, 'message': 'Invalid username or password'}), 401
 
     session['username'] = username
@@ -91,24 +89,17 @@ def login():
 # --- Game Data Endpoints ---
 @app.route('/api/game_data/<data_type>', methods=['GET'])
 def get_game_data(data_type):
-    data_map = {
-        'cases': CASES, 'skins': SKINS,
-        'rarities': RARITIES, 'ranks': RANKS
-    }
-    if data_type in data_map:
-        return jsonify(data_map[data_type])
-    return jsonify({"error": "Not Found"}), 404
+    data_map = {'cases': CASES, 'skins': SKINS, 'rarities': RARITIES, 'ranks': RANKS}
+    return jsonify(data_map.get(data_type, {}))
 
 @app.route('/api/game_state', methods=['POST'])
 def game_state():
-    if 'username' not in session:
-        return jsonify({'success': False, 'message': 'Not logged in'}), 401
+    if 'username' not in session: return jsonify({'success': False, 'message': 'Not logged in'}), 401
     
     username = session['username']
     data = request.get_json()
     last_chat_id = data.get('last_chat_id', '0')
     
-    # Simple chat implementation
     chat_log = load_json(CHAT_LOG_FILE)
     if not isinstance(chat_log, list): chat_log = []
     
@@ -116,8 +107,7 @@ def game_state():
 
     return jsonify({
         'success': True,
-        'player_data': get_player_data(username),
-        'online_players': [s_user for s_user in session], # Simplified online list
+        'player_data': PLAYERS.get(username, {}),
         'new_global_messages': new_messages
     })
     
@@ -129,15 +119,14 @@ def click():
     player = PLAYERS[username]
     rank_info = RANKS.get(str(player.get('rank', 0)), {})
     
-    player['clicks'] += rank_info.get('base_clicks', 1)
-    player['money'] += rank_info.get('base_clicks', 1) # Simplified money gain
+    player['clicks'] = player.get('clicks', 0) + rank_info.get('base_clicks', 1)
+    player['money'] = player.get('money', 0) + rank_info.get('base_clicks', 1)
     
-    # Check for rank up
-    next_rank_id = str(player['rank'] + 1)
+    next_rank_id = str(player.get('rank', 0) + 1)
     if next_rank_id in RANKS and player['clicks'] >= RANKS[next_rank_id]['clicks_needed']:
         player['rank'] = int(next_rank_id)
         
-    save_all_data()
+    save_json('players.json', PLAYERS)
     return jsonify({'success': True, 'player_data': player})
 
 @app.route('/api/buy_case', methods=['POST'])
@@ -152,13 +141,13 @@ def buy_case():
     case_info = CASES.get(case_name)
     if not case_info: return jsonify({'success': False, 'message': 'Case not found'}), 404
 
-    total_cost = int(case_info['price']) * quantity
-    if player['money'] < total_cost:
+    total_cost = int(case_info.get('price', '0')) * quantity
+    if player.get('money', 0) < total_cost:
         return jsonify({'success': False, 'message': 'Not enough money'}), 400
 
     player['money'] -= total_cost
-    player['cases'][case_name] = player['cases'].get(case_name, 0) + quantity
-    save_all_data()
+    player.setdefault('cases', {})[case_name] = player['cases'].get(case_name, 0) + quantity
+    save_json('players.json', PLAYERS)
     return jsonify({'success': True, 'player_data': player})
 
 @app.route('/api/open_case', methods=['POST'])
@@ -168,23 +157,19 @@ def open_case():
     case_name = request.get_json()['case_name']
     
     player = PLAYERS[username]
-    if player['cases'].get(case_name, 0) < 1:
+    if player.get('cases', {}).get(case_name, 0) < 1:
         return jsonify({'success': False, 'message': 'You do not own that case'}), 400
         
     player['cases'][case_name] -= 1
     if player['cases'][case_name] == 0:
         del player['cases'][case_name]
         
-    skin_name = random.choice(CASES[case_name]['skins'])
-    skin_value = get_skin_value(skin_name)
+    skin_name = random.choice(CASES.get(case_name, {}).get('skins', [None]))
+    if not skin_name: return jsonify({'success': False, 'message': 'Case has no skins'}), 500
     
-    new_skin = {
-        "id": str(uuid.uuid4()),
-        "name": skin_name,
-        "value": skin_value
-    }
-    player['skins'].append(new_skin)
-    save_all_data()
+    new_skin = {"id": str(uuid.uuid4()), "name": skin_name, "value": get_skin_value(skin_name)}
+    player.setdefault('skins', []).append(new_skin)
+    save_json('players.json', PLAYERS)
     return jsonify({'success': True, 'player_data': player, 'item_won': new_skin})
 
 @app.route('/api/sell_skins', methods=['POST'])
@@ -197,15 +182,15 @@ def sell_skins():
     skins_to_keep = []
     sell_value = 0
     
-    for skin in player['skins']:
-        if skin['id'] in skin_ids_to_sell:
-            sell_value += skin['value']
+    for skin in player.get('skins', []):
+        if skin.get('id') in skin_ids_to_sell:
+            sell_value += skin.get('value', 0)
         else:
             skins_to_keep.append(skin)
             
     player['skins'] = skins_to_keep
-    player['money'] += sell_value
-    save_all_data()
+    player['money'] = player.get('money', 0) + sell_value
+    save_json('players.json', PLAYERS)
     return jsonify({'success': True, 'player_data': player})
 
 # --- Chat Endpoint ---
@@ -219,35 +204,25 @@ def send_global_chat():
     chat_log = load_json(CHAT_LOG_FILE)
     if not isinstance(chat_log, list): chat_log = []
     
-    new_msg = {
-        'id': str(time.time()),
-        'sender': username,
-        'msg': message,
-        'is_server_msg': False
-    }
+    new_msg = {'id': str(time.time()), 'sender': username, 'msg': message}
     chat_log.append(new_msg)
     save_json(CHAT_LOG_FILE, chat_log[-200:]) # Keep last 200 messages
     return jsonify({'success': True})
 
-# --- Profile/Admin/Leaderboard (Basic Implementations) ---
+# --- Placeholder Endpoints ---
 @app.route('/api/update_profile', methods=['POST'])
 def update_profile():
-    if 'username' not in session: return jsonify({'success': False, 'message': 'Not logged in'}), 401
-    # This is a placeholder. A full implementation would require careful checks.
     return jsonify({'success': True, 'message': 'Profile updated successfully!'})
 
 @app.route('/api/leaderboards', methods=['GET'])
 def leaderboards():
-    # Placeholder leaderboard data
     sorted_clicks = sorted(PLAYERS.items(), key=lambda item: item[1].get('clicks', 0), reverse=True)
     most_clicks_data = [{"username": u, "value": d.get('clicks', 0)} for u, d in sorted_clicks]
     return jsonify({"most_clicks": most_clicks_data, "most_money": [], "most_time_played": []})
 
-# Add other admin/staff routes here as needed...
 @app.route('/api/admin/server_stats', methods=['POST'])
 def server_stats():
-    # Placeholder stats
-    return jsonify({ "online_players": len(session), "total_players": len(PLAYERS) })
+    return jsonify({ "online_players": 0, "total_players": len(PLAYERS) })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
